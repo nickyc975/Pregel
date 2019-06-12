@@ -21,22 +21,19 @@ public class Master {
      */
     private final Map<Long, Set<Long>> partitions;
 
+    private Class<Vertex> vertexClass;
+
     public Master() {
         workers = new HashMap<>();
         partitions = new HashMap<>();
     }
 
-    /**
-     * Generate id for workers.
-     * 
-     * @return an identical id.
-     */
-    long generateId() {
-        return 0;
-    }
-
     long getSuperstep() {
         return this.superstep;
+    }
+
+    Class<Vertex> getVertexClass() {
+        return this.vertexClass;
     }
 
     /**

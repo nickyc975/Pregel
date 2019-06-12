@@ -1,9 +1,12 @@
 package framework;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Worker {
+public class Worker implements Runnable {
     private final long id;
 
     /**
@@ -16,11 +19,11 @@ public class Worker {
      * 
      * The key of the map is the id of the corresponding vertex.
      */
-    private final Map<Long, ? extends Vertex> vertices;
+    private final Map<Long, Vertex> vertices;
 
-    Worker(Master context) {
+    Worker(long id, Master context) {
+        this.id = id;
         this.context = context;
-        this.id = context.generateId();
         this.vertices = new HashMap<>();
     }
 
@@ -60,6 +63,43 @@ public class Worker {
         Vertex receiver = vertices.get(id);
         if (receiver != null) {
             receiver.receiveMessage(message);
+        }
+    }
+
+    void loadGraph(String path) {
+        try {
+            Class<Vertex> vertexClass = context.getVertexClass();
+            Constructor<Vertex> vertexConstructor = vertexClass.getConstructor(long.class, Worker.class);
+            BufferedReader reader = new BufferedReader(new FileReader(path));
+            String line = reader.readLine();
+            while (line != null) {
+                String[] parts = line.split(" ");
+                if (parts.length >= 2) {
+                    long sourceId = Long.parseLong(parts[0]);
+                    long targetId = Long.parseLong(parts[1]);
+
+                    if (!vertices.containsKey(sourceId)) {
+                        Vertex source = vertexConstructor.newInstance(sourceId, this);
+                        this.vertices.put(sourceId, source);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+    }
+
+    void loadVertexProperties(String path) {
+
+    }
+
+    @Override
+    public void run() {
+        for (Vertex vertex : vertices.values()) {
+            if (vertex.isActive()) {
+                vertex.compute();
+            }
         }
     }
 }

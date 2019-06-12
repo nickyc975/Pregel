@@ -1,5 +1,6 @@
 package framework;
 
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
@@ -10,10 +11,17 @@ public abstract class Vertex {
      */
     private final Worker context;
 
+    private final long id;
+
     /**
      * Indicate if this vertex is active.
      */
     private boolean isActive = true;
+
+    /**
+     * Outer edge of this vertex.
+     */
+    private final Map<Long, Edge> outerEdges;
 
     /**
      * When current superstep is odd, use oddReceiveQueue to store 
@@ -27,10 +35,52 @@ public abstract class Vertex {
      */
     private final Queue<Message> evenReceiveQueue;
 
-    Vertex(Worker context) {
+    Vertex(long id, Worker context) {
+        this.id = id;
         this.context = context;
+        this.outerEdges = new HashMap<>();
         this.oddReceiveQueue = new LinkedList<>();
         this.evenReceiveQueue = new LinkedList<>();
+    }
+
+    /**
+     * Get id of this vertex.
+     * 
+     * Id must be globally identical.
+     * 
+     * @return id of this vertex.
+     */
+    public final long id() {
+        return this.id;
+    };
+
+    final void addOuterEdge(Edge edge) {
+        if (edge.getSource() == this.id()) {
+            outerEdges.put(edge.getTarget(), edge);
+        }
+    }
+
+    final void removeOuterEdge(long target) {
+        outerEdges.remove(target);
+    }
+
+    public final boolean hasOuterEdgeTo(long target) {
+        return this.outerEdges.containsKey(target);
+    }
+
+    public final Edge getOuterEdgeTo(long target) {
+        return this.outerEdges.get(target);
+    }
+
+    /**
+     * Get outer edges of this vertex.
+     * 
+     * @return outer edges of this vertex.
+     */
+    public final Map<Long, Edge> getOuterEdges() {
+        Map<Long, Edge> result = new HashMap<>();
+        result.putAll(this.outerEdges);
+        return result;
     }
 
     /**
@@ -118,15 +168,6 @@ public abstract class Vertex {
     }
 
     /**
-     * Get id of this vertex.
-     * 
-     * Id must be globally identical.
-     * 
-     * @return id of this vertex.
-     */
-    public abstract long id();
-
-    /**
      * The main calculating logic of each vertex.
      */
     public abstract void compute();
@@ -134,14 +175,7 @@ public abstract class Vertex {
     /**
      * Parse user defined properties of a vertex object from string.
      * 
-     * @param str string, usually from toString() of this class.
+     * @param strings Every string is a property. The first string is vertex id.
      */
-    public abstract void fromString(String str);
-
-    /**
-     * Get outer edges of this vertex.
-     * 
-     * @return outer edges of this vertex.
-     */
-    public abstract Map<Long, ? extends Edge> getOuterEdges();
+    public abstract void fromStrings(String[] strArray);
 }
