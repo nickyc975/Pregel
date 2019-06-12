@@ -1,21 +1,40 @@
 package framework;
 
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Worker {
-    private long superstep;
+    private final long id;
 
     /**
-     * Master will invoke this to update superstep of each worker.
-     * 
-     * @param superstep new superstep.
+     * The master that this worker belongs to.
      */
-    void setSuperstep(long superstep) {
-        this.superstep = superstep;
+    private final Master context;
+
+    /**
+     * Vertices on this worker.
+     * 
+     * The key of the map is the id of the corresponding vertex.
+     */
+    private final Map<Long, ? extends Vertex> vertices;
+
+    Worker(Master context) {
+        this.context = context;
+        this.id = context.generateId();
+        this.vertices = new HashMap<>();
     }
 
+    long id() {
+        return this.id;
+    }
+
+    /**
+     * Get superstep from master.
+     * 
+     * @return superstep.
+     */
     long getSuperstep() {
-        return this.superstep;
+        return context.getSuperstep();
     }
 
     /**
@@ -23,17 +42,24 @@ public class Worker {
      * 
      * @param message message to send.
      */
-    void send(Message message) {
-        
+    void sendMessage(Message message) {
+        if (vertices.containsKey(message.getReceiver())) {
+            receiveMessage(message);
+        } else {
+            context.sendMessage(message);
+        }
     }
 
     /**
-     * Vertices will invoke this to receive messages from other vertices.
+     * Master will invoke this method to deliver messages to workers.
      * 
-     * @param receiver receiver id.
-     * @return list of messages
+     * @param message message sent to vertices on this worker.
      */
-    List<Message> receive(long receiver) {
-        return null;
+    void receiveMessage(Message message) {
+        long id = message.getReceiver();
+        Vertex receiver = vertices.get(id);
+        if (receiver != null) {
+            receiver.receiveMessage(message);
+        }
     }
 }
