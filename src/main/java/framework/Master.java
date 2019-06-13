@@ -1,11 +1,10 @@
 package framework;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.Map.Entry;
 
-public class Master {
+public class Master implements Runnable {
     /**
      * Current superstep.
      */
@@ -16,40 +15,70 @@ public class Master {
      */
     private final Map<Long, Worker> workers;
 
-    /**
-     * The partitions information.
-     */
-    private final Map<Long, Set<Long>> partitions;
-
     private Class<Vertex> vertexClass;
+
+    private Class<Edge> edgeClass;
+
+    private String dataPath;
+
+    private int numPartitions;
+
+    private List<String> partitions;
 
     public Master() {
         workers = new HashMap<>();
-        partitions = new HashMap<>();
     }
 
     long getSuperstep() {
         return this.superstep;
     }
 
-    Class<Vertex> getVertexClass() {
-        return this.vertexClass;
+    public Master setVertexClass(Class<Vertex> vertexClass) {
+        this.vertexClass = vertexClass;
+        return this;
     }
 
-    /**
-     * Forward message between workers.
-     * 
-     * @param message message to be sent.
-     */
-    void sendMessage(Message message) {
-        long receiver = message.getReceiver();
-        for (Entry<Long, Set<Long>> entry : partitions.entrySet()) {
-            long key = entry.getKey();
-            Set<Long> value = entry.getValue();
-            if (value.contains(receiver)) {
-                workers.get(key).receiveMessage(message);
-                return;
-            }
-        }
+    public Master setEdgeClass(Class<Edge> edgeClass) {
+        this.edgeClass = edgeClass;
+        return this;
+    }
+
+    public Master setDataPath(String path) {
+        this.dataPath = path;
+        return this;
+    }
+
+    public Master setNumPartitions(int numPartitions) {
+        this.numPartitions = numPartitions;
+        return this;
+    }
+
+    public Master setCombiner(Combiner combiner) {
+        return this;
+    }
+
+    public Master setAggregator(Aggregator aggregator) {
+        return this;
+    }
+
+    public Worker getWorkerFromWorkerId(long workerId) {
+        return workers.get(workerId);
+    }
+
+    public Worker getWorkerFromVertexId(long vertexId) {
+        return workers.get(getWorkerIdFromVertexId(vertexId));
+    }
+
+    public long getWorkerIdFromVertexId(long vertexId) {
+        return vertexId % numPartitions;
+    }
+
+    private void partition() {
+
+    }
+
+    @Override
+    public void run() {
+        partition();
     }
 }
