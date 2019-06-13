@@ -1,8 +1,18 @@
 package framework;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 public class Master implements Runnable {
     /**
@@ -19,11 +29,13 @@ public class Master implements Runnable {
 
     private Class<Edge> edgeClass;
 
-    private String dataPath;
+    private Path workPath;
+
+    private Path graphPartsPath;
+
+    private Path verticesPartsPath;
 
     private int numPartitions;
-
-    private List<String> partitions;
 
     public Master() {
         workers = new HashMap<>();
@@ -43,8 +55,22 @@ public class Master implements Runnable {
         return this;
     }
 
-    public Master setDataPath(String path) {
-        this.dataPath = path;
+    public Master setWorkPath(String path) {
+        this.workPath = FileSystems.getDefault().getPath(path);
+        if (Files.exists(this.workPath)) {
+            System.out.println("File \"" + this.workPath + "\" already exists!");
+            System.exit(-1);
+        }
+        this.graphPartsPath = this.workPath.resolve("graph").resolve("parts");
+        this.verticesPartsPath = this.workPath.resolve("vertices").resolve("parts");
+        try {
+            Files.createDirectories(workPath);
+            Files.createDirectories(graphPartsPath);
+            Files.createDirectories(verticesPartsPath);
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
         return this;
     }
 
@@ -73,12 +99,82 @@ public class Master implements Runnable {
         return vertexId % numPartitions;
     }
 
-    private void partition() {
+    public void loadGraph(String path) {
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(path));
+            BufferedWriter[] writers = new BufferedWriter[numPartitions];
+            for (int i = 0; i < numPartitions; i++) {
+                String partPath = graphPartsPath.resolve(i + ".txt").toString();
+                writers[i] = new BufferedWriter(new FileWriter(partPath));
+            }
 
+            String line = reader.readLine();
+            while (line != null) {
+                String[] parts = line.split(" ", 2);
+                int index = (int) Long.parseLong(parts[0]) % numPartitions;
+                writers[index].write(line);
+                writers[index].newLine();
+                line = reader.readLine();
+            }
+            for (BufferedWriter writer : writers) {
+                writer.close();
+            }
+            reader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+    }
+
+    public void loadVertexProperties(String path) {
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(path));
+            BufferedWriter[] writers = new BufferedWriter[numPartitions];
+            for (int i = 0; i < numPartitions; i++) {
+                String partPath = verticesPartsPath.resolve(i + ".txt").toString();
+                writers[i] = new BufferedWriter(new FileWriter(partPath));
+            }
+
+            String line = reader.readLine();
+            while (line != null) {
+                String[] parts = line.split(" ", 2);
+                int index = (int) Long.parseLong(parts[0]) % numPartitions;
+                writers[index].write(line);
+                writers[index].newLine();
+                line = reader.readLine();
+            }
+            for (BufferedWriter writer : writers) {
+                writer.close();
+            }
+            reader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
     }
 
     @Override
     public void run() {
-        partition();
+        for (int i = 0; i < numPartitions; i++) {
+            Worker worker = new Worker(i, this);
+            worker.setVertexClass(vertexClass).setEdgeClass(edgeClass);
+            workers.put((long) i, worker);
+        }
+
+        List<Thread> threads = new ArrayList<>();
+        while (true) {
+            for (Entry<Long, Worker> entry: workers.entrySet()) {
+                Thread thread = new Thread(entry.getValue());
+                thread.start();
+            }
+            for (Thread thread : threads) {
+                try {
+                    thread.join();
+                } catch (InterruptedException ignored) {
+
+                }
+            }
+            threads.clear();
+        }
     }
 }
