@@ -1,11 +1,11 @@
-package framework;
+package framework.api;
 
 public abstract class Edge {
     private final long source;
 
     private final long target;
 
-    Edge(long source, long target) {
+    public Edge(long source, long target) {
         this.source = source;
         this.target = target;
     }

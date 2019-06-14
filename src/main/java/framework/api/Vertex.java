@@ -1,9 +1,11 @@
-package framework;
+package framework.api;
 
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
+
+import framework.Worker;
 
 public abstract class Vertex {
     /**
@@ -33,7 +35,7 @@ public abstract class Vertex {
      */
     private final Queue<Message> evenReceiveQueue;
 
-    Vertex(long id, Worker context) {
+    public Vertex(long id, Worker context) {
         this.id = id;
         this.context = context;
         this.outerEdges = new HashMap<>();
@@ -59,7 +61,7 @@ public abstract class Vertex {
      * 
      * @param edge edge to add.
      */
-    final void addOuterEdge(Edge edge) {
+    public final void addOuterEdge(Edge edge) {
         if (edge.getSource() == this.id()) {
             outerEdges.put(edge.getTarget(), edge);
         }
@@ -70,7 +72,7 @@ public abstract class Vertex {
      * 
      * @param target target of the removing edge.
      */
-    final void removeOuterEdge(long target) {
+    public final void removeOuterEdge(long target) {
         outerEdges.remove(target);
     }
 
@@ -111,7 +113,7 @@ public abstract class Vertex {
      * @param receiver receiver id.
      * @param message message to send.
      */
-    protected final void sendMessageTo(long receiver, Message message) {
+    public final void sendMessageTo(long receiver, Message message) {
         message.setSender(this.id())
                .setReceiver(receiver)
                .setSuperstep(context.getSuperstep());
@@ -123,7 +125,7 @@ public abstract class Vertex {
      * 
      * @return true if has messages, false otherwise.
      */
-    protected final boolean hasMessages() {
+    public final boolean hasMessages() {
         if (context.getSuperstep() % 2 == 0) {
             return !oddReceiveQueue.isEmpty();
         } else {
@@ -136,7 +138,7 @@ public abstract class Vertex {
      * 
      * @return message received.
      */
-    protected final Message readMessage() {
+    public final Message readMessage() {
         if (context.getSuperstep() % 2 == 0) {
             return oddReceiveQueue.remove();
         } else {
@@ -149,7 +151,7 @@ public abstract class Vertex {
      * 
      * @param message message to be sent.
      */
-    protected final void sendMessage(Message message) {
+    public final void sendMessage(Message message) {
         for (Long target : getOuterEdges().keySet()) {
             sendMessageTo(target, message);
         }
@@ -160,7 +162,7 @@ public abstract class Vertex {
      * 
      * @param message message sent to this vertex.
      */
-    protected synchronized final void receiveMessage(Message message) {
+    public synchronized final void receiveMessage(Message message) {
         if (context.getSuperstep() % 2 == 0) {
             evenReceiveQueue.add(message);
         } else {

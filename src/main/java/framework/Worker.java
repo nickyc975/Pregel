@@ -6,6 +6,10 @@ import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Map;
 
+import framework.api.Edge;
+import framework.api.Message;
+import framework.api.Vertex;
+
 public class Worker implements Runnable {
     private final long id;
 
@@ -52,7 +56,7 @@ public class Worker implements Runnable {
      * 
      * @return superstep.
      */
-    long getSuperstep() {
+    public long getSuperstep() {
         return context.getSuperstep();
     }
 
@@ -93,7 +97,7 @@ public class Worker implements Runnable {
      * 
      * @param message message to send.
      */
-    void sendMessage(Message message) {
+    public void sendMessage(Message message) {
         long vertexId = message.getReceiver();
         if (vertices.containsKey(vertexId)) {
             receiveMessage(message);
@@ -108,7 +112,7 @@ public class Worker implements Runnable {
      * 
      * @param message message sent to vertices on this worker.
      */
-    void receiveMessage(Message message) {
+    public void receiveMessage(Message message) {
         long id = message.getReceiver();
         Vertex receiver = vertices.get(id);
         if (receiver != null) {
@@ -116,7 +120,7 @@ public class Worker implements Runnable {
         }
     }
 
-    void loadGraph() {
+    public void loadGraph() {
         try {
             Edge edge;
             Vertex source, target;
@@ -160,7 +164,7 @@ public class Worker implements Runnable {
         }
     }
 
-    void loadVertexProperties() {
+    public void loadVertexProperties() {
         try {
             Vertex vertex;
             BufferedReader reader = new BufferedReader(new FileReader(verticesPath));
@@ -184,7 +188,7 @@ public class Worker implements Runnable {
         }
     }
 
-    void voteToHalt() {
+    public void voteToHalt() {
         context.setDone(id());
     }
 

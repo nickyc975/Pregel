@@ -1,4 +1,4 @@
-package framework;
+package framework.api;
 
 public abstract class Message {
     private long sender;
