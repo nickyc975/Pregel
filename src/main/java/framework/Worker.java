@@ -3,6 +3,7 @@ package framework;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import framework.api.Edge;
@@ -109,6 +110,10 @@ public class Worker implements Runnable {
         if (receiver != null) {
             receiver.receiveMessage(message);
         }
+    }
+
+    public Iterator<Vertex> getVertices() {
+        return this.vertices.values().iterator();
     }
 
     public void loadGraph() {

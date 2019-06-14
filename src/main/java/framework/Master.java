@@ -10,9 +10,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Function;
 
 import framework.api.Vertex;
 import framework.api.Edge;
@@ -112,29 +114,34 @@ public class Master {
         return vertexId % numPartitions;
     }
 
+    private void partition(String inputFile, String outputDir, Function<String, Integer> calIndexFunc) throws IOException {
+        BufferedReader reader = new BufferedReader(new FileReader(inputFile));
+        BufferedWriter[] writers = new BufferedWriter[numPartitions];
+        for (int i = 0; i < numPartitions; i++) {
+            String partPath = outputDir + "/" + i + ".txt";
+            writers[i] = new BufferedWriter(new FileWriter(partPath));
+        }
+
+        String line = reader.readLine();
+        while (line != null) {
+            int index = calIndexFunc.apply(line);
+            writers[index].write(line);
+            writers[index].newLine();
+            line = reader.readLine();
+        }
+        for (BufferedWriter writer : writers) {
+            writer.close();
+        }
+        reader.close();
+    }
+
     public void loadGraph(String path) {
         try {
             graphPartsPath = workPath.resolve("graph").resolve("parts");
             Files.createDirectories(graphPartsPath);
-            BufferedReader reader = new BufferedReader(new FileReader(path));
-            BufferedWriter[] writers = new BufferedWriter[numPartitions];
-            for (int i = 0; i < numPartitions; i++) {
-                String partPath = graphPartsPath.resolve(i + ".txt").toString();
-                writers[i] = new BufferedWriter(new FileWriter(partPath));
-            }
-
-            String line = reader.readLine();
-            while (line != null) {
-                String[] parts = line.split("\t", 2);
-                int index = (int) Long.parseLong(parts[0]) % numPartitions;
-                writers[index].write(line);
-                writers[index].newLine();
-                line = reader.readLine();
-            }
-            for (BufferedWriter writer : writers) {
-                writer.close();
-            }
-            reader.close();
+            partition(path, graphPartsPath.toString(), 
+                s -> (int) Long.parseLong(s.split("\t", 2)[0]) % numPartitions
+            );
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(-1);
@@ -145,29 +152,17 @@ public class Master {
         try {
             verticesPartsPath = workPath.resolve("vertices").resolve("parts");
             Files.createDirectories(verticesPartsPath);
-            BufferedReader reader = new BufferedReader(new FileReader(path));
-            BufferedWriter[] writers = new BufferedWriter[numPartitions];
-            for (int i = 0; i < numPartitions; i++) {
-                String partPath = verticesPartsPath.resolve(i + ".txt").toString();
-                writers[i] = new BufferedWriter(new FileWriter(partPath));
-            }
-
-            String line = reader.readLine();
-            while (line != null) {
-                String[] parts = line.split("\t", 2);
-                int index = (int) Long.parseLong(parts[0]) % numPartitions;
-                writers[index].write(line);
-                writers[index].newLine();
-                line = reader.readLine();
-            }
-            for (BufferedWriter writer : writers) {
-                writer.close();
-            }
-            reader.close();
+            partition(path, verticesPartsPath.toString(), 
+                s -> (int) Long.parseLong(s.split("\t", 2)[0]) % numPartitions
+            );
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(-1);
         }
+    }
+
+    public Iterator<Vertex> getVertices() {
+        return new VertexIterator(this);
     }
 
     synchronized void setDone(long workerId) {
@@ -206,6 +201,39 @@ public class Master {
             threads.clear();
             System.out.println("Superstep: " + superstep);
             superstep++;
+        }
+    }
+
+    private static class VertexIterator implements Iterator<Vertex> {
+        private Iterator<Worker> workers = null;
+
+        private Iterator<Vertex> vertices = null;
+
+        VertexIterator(Master master) {
+            this.workers = master.workers.values().iterator();
+            if (this.workers.hasNext()) {
+                this.vertices = this.workers.next().getVertices();
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return vertices != null && (vertices.hasNext() || workers.hasNext());
+        }
+
+        @Override
+        public Vertex next() {
+            if (vertices != null) {
+                if (vertices.hasNext()) {
+                    return vertices.next();
+                } else if (workers.hasNext()) {
+                    vertices = workers.next().getVertices();
+                    return vertices.next();
+                } else {
+                    return null;
+                }
+            }
+            return null;
         }
     }
 }

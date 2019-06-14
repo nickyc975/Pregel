@@ -1,5 +1,10 @@
 package algorithm;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Iterator;
+
 import framework.Master;
 import framework.api.Edge;
 import framework.api.Message;
@@ -13,10 +18,27 @@ public class PageRank {
                                     .setWorkPath("data/page_rank");
         master.loadGraph("data/web-Google.txt");
         master.run();
+        Iterator<Vertex> vertices = master.getVertices();
+
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter("data/page_rank/output.txt"));
+            while (vertices.hasNext()) {
+                PageRankVertex vertex = (PageRankVertex) (vertices.next());
+                String output = String.format("%d\t%f\n", vertex.id(), vertex.getValue());
+                writer.write(output);
+            }
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public static class PageRankVertex extends Vertex {
         private double value;
+
+        public double getValue() {
+            return value;
+        }
     
         @Override
         public void compute() {
@@ -24,8 +46,8 @@ public class PageRank {
                 double sum = 0;
                 while (hasMessages()) {
                     sum += ((PageRankMessage)readMessage()).getValue();
-                    value = 0.15 / context.getTotalNumVertices() + 0.85 * sum;
                 }
+                value = 0.15 / context.getTotalNumVertices() + 0.85 * sum;
             }
     
             if (context.getSuperstep() < 30) {
