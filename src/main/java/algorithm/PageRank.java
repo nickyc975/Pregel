@@ -26,6 +26,11 @@ public class PageRank {
 
         Consumer<Vertex<DoubleValue, EmptyValue, Double>> computeFunction = vertex -> {
             DoubleValue value = vertex.getValue();
+            if (value == null) {
+                value = new DoubleValue(vertex.id());
+                value.setValue(0);
+                vertex.setValue(value);
+            }
             if (vertex.context().getSuperstep() >= 1) {
                 double sum = 0;
                 while (vertex.hasMessages()) {
@@ -48,8 +53,8 @@ public class PageRank {
         try {
             BufferedWriter writer = new BufferedWriter(new FileWriter("data/page_rank/output.txt"));
             while (vertices.hasNext()) {
-                Vertex<DoubleValue, EmptyValue, Double> vertex = vertices.next();
-                String output = String.format("%d\t%f\n", vertex.id(), vertex.getValue().getValue());
+                DoubleValue value = vertices.next().getValue();
+                String output = String.format("%d\t%f\n", value.id(), value.getValue());
                 writer.write(output);
             }
             writer.close();
