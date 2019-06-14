@@ -129,18 +129,14 @@ public class Worker implements Runnable {
                     long targetId = Long.parseLong(parts[1]);
 
                     if (!vertices.containsKey(sourceId)) {
-                        source = vertexClass.newInstance();
-                        source.setContext(this);
-                        source.setId(sourceId);
+                        source = Vertex.newInstance(vertexClass, sourceId, this);
                         this.vertices.put(sourceId, source);
                     } else {
                         source = vertices.get(sourceId);
                     }
 
                     if (!source.hasOuterEdgeTo(targetId)) {
-                        edge = edgeClass.newInstance();
-                        edge.setSource(sourceId);
-                        edge.setTarget(targetId);
+                        edge = Edge.newInstance(edgeClass, sourceId, targetId);
                         edge.fromStrings(parts);
                         source.addOuterEdge(edge);
                     } else {
@@ -151,9 +147,7 @@ public class Worker implements Runnable {
 
                     if (context.getWorkerIdFromVertexId(targetId) == this.id()) {
                         if (!vertices.containsKey(targetId)) {
-                            target = vertexClass.newInstance();
-                            target.setContext(this);
-                            target.setId(targetId);
+                            target = Vertex.newInstance(vertexClass, targetId, this);
                             this.vertices.put(targetId, target);
                         }
                     }
@@ -178,9 +172,7 @@ public class Worker implements Runnable {
                 if (vertices.containsKey(vertexId)) {
                     vertex = vertices.get(vertexId);
                 } else {
-                    vertex = vertexClass.newInstance();
-                    vertex.setContext(this);
-                    vertex.setId(vertexId);
+                    vertex = Vertex.newInstance(vertexClass, vertexId, this);
                 }
                 vertex.fromStrings(parts);
                 line = reader.readLine();

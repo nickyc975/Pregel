@@ -1,17 +1,15 @@
 package framework.api;
 
 public abstract class Edge {
+    /**
+     * Source vertex id.
+     */
     private long source;
 
+    /**
+     * target vertex id.
+     */
     private long target;
-
-    public void setSource(long source) {
-        this.source = source;
-    }
-
-    public void setTarget(long target) {
-        this.target = target;
-    }
 
     /**
      * Get the id of the source of this outer edge.
@@ -37,4 +35,23 @@ public abstract class Edge {
      * @param strings Every string is a property. The first two strings are source id and target id.
      */
     public abstract void fromStrings(String[] strings);
+
+    /**
+     * Create instance of subclass of Edge.
+     * 
+     * @param klass subclass of Edge.
+     * @param source source vertex id.
+     * @param target target vertex id.
+     * @return instance of the subclass.
+     */
+    public static final Edge newInstance(Class<? extends Edge> klass, long source, long target) {
+        try {
+            Edge instance = klass.newInstance();
+            instance.source = source;
+            instance.target = target;
+            return instance;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

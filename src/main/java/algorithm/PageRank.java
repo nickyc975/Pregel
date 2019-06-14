@@ -42,15 +42,15 @@ public class PageRank {
     
         @Override
         public void compute() {
-            if (context.getSuperstep() >= 1) {
+            if (context().getSuperstep() >= 1) {
                 double sum = 0;
                 while (hasMessages()) {
                     sum += ((PageRankMessage)readMessage()).getValue();
                 }
-                value = 0.15 / context.getTotalNumVertices() + 0.85 * sum;
+                value = 0.15 / context().getTotalNumVertices() + 0.85 * sum;
             }
     
-            if (context.getSuperstep() < 30) {
+            if (context().getSuperstep() < 30) {
                 int n = getOuterEdges().size();
                 sendMessage(new PageRankMessage(value / n));
             }

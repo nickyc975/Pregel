@@ -9,45 +9,31 @@ import framework.Worker;
 
 public abstract class Vertex {
     /**
-     * The worker that this vertex belongs to. 
-     */
-    protected Worker context;
-
-    /**
      * Id of this vertex.
      */
-    protected long id;
+    private long id;
+
+    /**
+     * The worker that this vertex belongs to. 
+     */
+    private Worker context;
 
     /**
      * Outer edge of this vertex.
      */
-    private final Map<Long, Edge> outerEdges;
+    private Map<Long, Edge> outerEdges;
 
     /**
      * When current superstep is odd, use oddReceiveQueue to store 
      * the messages received in current superstep.
      */
-    private final Queue<Message> oddReceiveQueue;
+    private Queue<Message> oddReceiveQueue;
 
     /**
      * When current superstep is even, use evenReceiveQueue to store 
      * the messages received in current superstep.
      */
-    private final Queue<Message> evenReceiveQueue;
-
-    public Vertex() {
-        this.outerEdges = new HashMap<>();
-        this.oddReceiveQueue = new LinkedList<>();
-        this.evenReceiveQueue = new LinkedList<>();
-    }
-
-    public void setId(long id) {
-        this.id = id;
-    }
-
-    public void setContext(Worker context) {
-        this.context = context;
-    } 
+    private Queue<Message> evenReceiveQueue;
 
     /**
      * Get id of this vertex.
@@ -59,6 +45,15 @@ public abstract class Vertex {
     public final long id() {
         return this.id;
     };
+
+    /**
+     * Get context of this vertex.
+     * 
+     * @return context of this vertex.
+     */
+    public final Worker context() {
+        return this.context;
+    }
 
     /**
      * Add an edge with this vertex as the source to the edge list of this vertex.
@@ -187,4 +182,26 @@ public abstract class Vertex {
      * @param strings Every string is a property. The first string is vertex id.
      */
     public abstract void fromStrings(String[] strings);
+
+    /**
+     * Create new instance of subclasses of Vertex.
+     * 
+     * @param klass subclass of Vertex.
+     * @param id id of new instance.
+     * @param context context of new instance.
+     * @return a new instance.
+     */
+    public static final Vertex newInstance(Class<? extends Vertex> klass, long id, Worker context) {
+        try {
+            Vertex instance = klass.newInstance();
+            instance.id = id;
+            instance.context = context;
+            instance.outerEdges = new HashMap<>();
+            instance.oddReceiveQueue = new LinkedList<>();
+            instance.evenReceiveQueue = new LinkedList<>();
+            return instance;
+        } catch (Exception e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
 }
