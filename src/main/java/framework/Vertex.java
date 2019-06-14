@@ -11,12 +11,10 @@ public abstract class Vertex {
      */
     private final Worker context;
 
-    private final long id;
-
     /**
-     * Indicate if this vertex is active.
+     * Id of this vertex.
      */
-    private boolean isActive = true;
+    private final long id;
 
     /**
      * Outer edge of this vertex.
@@ -54,20 +52,44 @@ public abstract class Vertex {
         return this.id;
     };
 
+    /**
+     * Add an edge with this vertex as the source to the edge list of this vertex.
+     * 
+     * If the source of the edge is not this vertex, it won't be added.
+     * 
+     * @param edge edge to add.
+     */
     final void addOuterEdge(Edge edge) {
         if (edge.getSource() == this.id()) {
             outerEdges.put(edge.getTarget(), edge);
         }
     }
 
+    /**
+     * Remove the edge with the given target.
+     * 
+     * @param target target of the removing edge.
+     */
     final void removeOuterEdge(long target) {
         outerEdges.remove(target);
     }
 
+    /**
+     * Check if the vertex has an outer edge to the given target.
+     * 
+     * @param target id of target vertex.
+     * @return the result.
+     */
     public final boolean hasOuterEdgeTo(long target) {
         return this.outerEdges.containsKey(target);
     }
 
+    /**
+     * Get the outer edge to the given target.
+     * 
+     * @param target id of target vertex.
+     * @return the result.
+     */
     public final Edge getOuterEdgeTo(long target) {
         return this.outerEdges.get(target);
     }
@@ -81,27 +103,6 @@ public abstract class Vertex {
         Map<Long, Edge> result = new HashMap<>();
         result.putAll(this.outerEdges);
         return result;
-    }
-
-    /**
-     * Activate this vertex.
-     */
-    protected final void activate() {
-        this.isActive = true;
-    }
-
-    /**
-     * Check if this vertex is active.
-     */
-    protected final boolean isActive() {
-        return this.isActive;
-    }
-
-    /**
-     * Deactivate this vertex.
-     */
-    protected final void deactivate() {
-        this.isActive = false;
     }
 
     /**
@@ -159,7 +160,7 @@ public abstract class Vertex {
      * 
      * @param message message sent to this vertex.
      */
-    protected final void receiveMessage(Message message) {
+    protected synchronized final void receiveMessage(Message message) {
         if (context.getSuperstep() % 2 == 0) {
             evenReceiveQueue.add(message);
         } else {

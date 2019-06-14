@@ -14,11 +14,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-public class Master implements Runnable {
+public class Master {
     /**
      * Current superstep.
      */
     private long superstep = 0;
+
+    private long numActiveWorkers;
 
     /**
      * Workers registered on this master.
@@ -31,9 +33,9 @@ public class Master implements Runnable {
 
     private Path workPath;
 
-    private Path graphPartsPath;
+    private Path graphPartsPath = null;
 
-    private Path verticesPartsPath;
+    private Path verticesPartsPath = null;
 
     private int numPartitions;
 
@@ -61,12 +63,10 @@ public class Master implements Runnable {
             System.out.println("File \"" + this.workPath + "\" already exists!");
             System.exit(-1);
         }
-        this.graphPartsPath = this.workPath.resolve("graph").resolve("parts");
-        this.verticesPartsPath = this.workPath.resolve("vertices").resolve("parts");
+        
         try {
             Files.createDirectories(workPath);
-            Files.createDirectories(graphPartsPath);
-            Files.createDirectories(verticesPartsPath);
+            
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(-1);
@@ -101,6 +101,8 @@ public class Master implements Runnable {
 
     public void loadGraph(String path) {
         try {
+            graphPartsPath = workPath.resolve("graph").resolve("parts");
+            Files.createDirectories(graphPartsPath);
             BufferedReader reader = new BufferedReader(new FileReader(path));
             BufferedWriter[] writers = new BufferedWriter[numPartitions];
             for (int i = 0; i < numPartitions; i++) {
@@ -128,6 +130,8 @@ public class Master implements Runnable {
 
     public void loadVertexProperties(String path) {
         try {
+            verticesPartsPath = workPath.resolve("vertices").resolve("parts");
+            Files.createDirectories(verticesPartsPath);
             BufferedReader reader = new BufferedReader(new FileReader(path));
             BufferedWriter[] writers = new BufferedWriter[numPartitions];
             for (int i = 0; i < numPartitions; i++) {
@@ -153,16 +157,26 @@ public class Master implements Runnable {
         }
     }
 
-    @Override
+    synchronized void setDone(long workerId) {
+        numActiveWorkers--;
+    }
+
     public void run() {
         for (int i = 0; i < numPartitions; i++) {
             Worker worker = new Worker(i, this);
             worker.setVertexClass(vertexClass).setEdgeClass(edgeClass);
+            if (graphPartsPath != null) {
+                worker.setGraphPath(graphPartsPath.resolve(i + ".txt").toString());
+            }
+            if (verticesPartsPath != null) {
+                worker.setVerticesPath(verticesPartsPath.resolve(i + ".txt").toString());
+            }
             workers.put((long) i, worker);
         }
 
         List<Thread> threads = new ArrayList<>();
-        while (true) {
+        while (numActiveWorkers > 0) {
+            numActiveWorkers = workers.size();
             for (Entry<Long, Worker> entry: workers.entrySet()) {
                 Thread thread = new Thread(entry.getValue());
                 thread.start();

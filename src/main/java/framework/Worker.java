@@ -29,6 +29,14 @@ public class Worker implements Runnable {
 
     private Constructor<Edge> edgeConstructor;
 
+    private String graphPath = null;
+
+    private boolean graphLoaded = false;
+
+    private String verticesPath = null;
+
+    private boolean verticesLoaded = false;
+
     Worker(long id, Master context) {
         this.id = id;
         this.context = context;
@@ -70,6 +78,16 @@ public class Worker implements Runnable {
         return this;
     }
 
+    Worker setGraphPath(String path) {
+        this.graphPath = path;
+        return this;
+    }
+
+    Worker setVerticesPath(String path) {
+        this.verticesPath = path;
+        return this;
+    }
+
     /**
      * Vertices will invoke this to send message to other vertices.
      * 
@@ -98,11 +116,11 @@ public class Worker implements Runnable {
         }
     }
 
-    void loadGraph(String path) {
+    void loadGraph() {
         try {
             Edge edge;
             Vertex source, target;
-            BufferedReader reader = new BufferedReader(new FileReader(path));
+            BufferedReader reader = new BufferedReader(new FileReader(graphPath));
             String line = reader.readLine();
             while (line != null) {
                 String[] parts = line.split(" ");
@@ -134,6 +152,7 @@ public class Worker implements Runnable {
                 }
                 line = reader.readLine();
             }
+            graphLoaded = true;
             reader.close();
         } catch (Exception e) {
             e.printStackTrace();
@@ -141,10 +160,10 @@ public class Worker implements Runnable {
         }
     }
 
-    void loadVertexProperties(String path) {
+    void loadVertexProperties() {
         try {
             Vertex vertex;
-            BufferedReader reader = new BufferedReader(new FileReader(path));
+            BufferedReader reader = new BufferedReader(new FileReader(verticesPath));
             String line = reader.readLine();
             while (line != null) {
                 String[] parts = line.split(" ");
@@ -157,6 +176,7 @@ public class Worker implements Runnable {
                 vertex.fromStrings(parts);
                 line = reader.readLine();
             }
+            verticesLoaded = true;
             reader.close();
         } catch (Exception e) {
             e.printStackTrace();
@@ -164,12 +184,29 @@ public class Worker implements Runnable {
         }
     }
 
+    void voteToHalt() {
+        context.setDone(id());
+    }
+
     @Override
     public void run() {
+        if (graphPath != null && !graphLoaded) {
+            loadGraph();
+        }
+
+        if (verticesPath != null && !verticesLoaded) {
+            loadVertexProperties();
+        }
+
+        long numActiveVertices = 0;
         for (Vertex vertex : vertices.values()) {
-            if (vertex.isActive()) {
+            if (vertex.hasMessages()) {
                 vertex.compute();
+                numActiveVertices++;
             }
+        }
+        if (numActiveVertices == 0) {
+            voteToHalt();
         }
     }
 }
