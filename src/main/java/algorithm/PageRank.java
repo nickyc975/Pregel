@@ -4,27 +4,52 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.function.Consumer;
 
 import framework.Master;
-import framework.api.Edge;
-import framework.api.Message;
-import framework.api.Vertex;
+import framework.Vertex;
+import framework.api.EdgeValue;
+import framework.api.VertexValue;
 
 public class PageRank {
     public static void main(String[] args) {
-        Master master = new Master().setEdgeClass(PageRankEdge.class)
-                                    .setVertexClass(PageRankVertex.class)
-                                    .setNumPartitions(4)
-                                    .setWorkPath("data/page_rank");
-        master.loadGraph("data/web-Google.txt");
-        master.run();
-        Iterator<Vertex> vertices = master.getVertices();
+        Master<DoubleValue, EmptyValue, Double> master = new Master<DoubleValue, EmptyValue, Double>();
+        master.setNumPartitions(4)
+              .setWorkPath("data/page_rank")
+              .setEdgeParser(s -> {
+                  String[] parts = s.split("\t");
+                  return new EmptyValue(Long.parseLong(parts[0]), Long.parseLong(parts[1]));
+              }).setVertexParser(s -> {
+                  String[] parts = s.split("\t");
+                  return new DoubleValue(Long.parseLong(parts[0]));
+              });
 
+        Consumer<Vertex<DoubleValue, EmptyValue, Double>> computeFunction = vertex -> {
+            DoubleValue value = vertex.getValue();
+            if (vertex.context().getSuperstep() >= 1) {
+                double sum = 0;
+                while (vertex.hasMessages()) {
+                    sum += vertex.readMessage();
+                }
+                value.setValue(0.15 / vertex.context().getTotalNumVertices() + 0.85 * sum);
+            }
+    
+            if (vertex.context().getSuperstep() < 30) {
+                int n = vertex.getOuterEdges().size();
+                vertex.sendMessage(value.getValue() / n);
+            }
+        };
+
+        master.setComputeFunction(computeFunction);
+        master.loadEdges("data/web-Google.txt");
+        master.run();
+
+        Iterator<Vertex<DoubleValue, EmptyValue, Double>> vertices = master.getVertices();
         try {
             BufferedWriter writer = new BufferedWriter(new FileWriter("data/page_rank/output.txt"));
             while (vertices.hasNext()) {
-                PageRankVertex vertex = (PageRankVertex) (vertices.next());
-                String output = String.format("%d\t%f\n", vertex.id(), vertex.getValue());
+                Vertex<DoubleValue, EmptyValue, Double> vertex = vertices.next();
+                String output = String.format("%d\t%f\n", vertex.id(), vertex.getValue().getValue());
                 writer.write(output);
             }
             writer.close();
@@ -33,51 +58,45 @@ public class PageRank {
         }
     }
 
-    public static class PageRankVertex extends Vertex {
-        private double value;
+    public static class DoubleValue extends VertexValue {
+        private final long id;
+        private double value = 0;
+
+        public DoubleValue(long id) {
+            this.id = id;
+        }
+
+        @Override
+        public long id() {
+            return this.id;
+        }
 
         public double getValue() {
             return value;
         }
-    
-        @Override
-        public void compute() {
-            if (context().getSuperstep() >= 1) {
-                double sum = 0;
-                while (hasMessages()) {
-                    sum += ((PageRankMessage)readMessage()).getValue();
-                }
-                value = 0.15 / context().getTotalNumVertices() + 0.85 * sum;
-            }
-    
-            if (context().getSuperstep() < 30) {
-                int n = getOuterEdges().size();
-                sendMessage(new PageRankMessage(value / n));
-            }
-        }
-    
-        @Override
-        public void fromStrings(String[] strings) {
-            
-        }
-    }
-    
-    public static class PageRankEdge extends Edge {
-        @Override
-        public void fromStrings(String[] strings) {
-    
-        }
-    }
-    
-    public static class PageRankMessage extends Message {
-        private final double value;
-    
-        PageRankMessage(double value) {
+
+        public void setValue(double value) {
             this.value = value;
         }
+    }
     
-        double getValue() {
-            return this.value;
+    public static class EmptyValue extends EdgeValue {
+        private long source;
+        private long target;
+
+        public EmptyValue(long source, long target) {
+            this.source = source;
+            this.target = target;
+        }
+
+        @Override
+        public long source() {
+            return this.source;
+        }
+
+        @Override
+        public long target() {
+            return this.target;
         }
     }
 }

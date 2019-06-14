@@ -5,29 +5,26 @@ import java.io.FileReader;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
-import framework.api.Edge;
-import framework.api.Message;
-import framework.api.Vertex;
+import framework.api.EdgeValue;
+import framework.api.VertexValue;
 
-public class Worker implements Runnable {
+public class Worker<V extends VertexValue, E extends EdgeValue, M> implements Runnable {
     private final long id;
 
     /**
      * The master that this worker belongs to.
      */
-    private final Master context;
+    private final Master<V, E, M> context;
 
     /**
      * Vertices on this worker.
      * 
      * The key of the map is the id of the corresponding vertex.
      */
-    private final Map<Long, Vertex> vertices;
-
-    private Class<? extends Vertex> vertexClass;
-
-    private Class<? extends Edge> edgeClass;
+    private final Map<Long, Vertex<V, E, M>> vertices;
 
     private String graphPath = null;
 
@@ -37,7 +34,13 @@ public class Worker implements Runnable {
 
     private boolean verticesLoaded = false;
 
-    Worker(long id, Master context) {
+    private Function<String, E> edgeParser = null;
+
+    private Function<String, V> vertexParser = null;
+
+    private Consumer<Vertex<V, E, M>> computeFunction = null;
+
+    Worker(long id, Master<V, E, M> context) {
         this.id = id;
         this.context = context;
         this.vertices = new HashMap<>();
@@ -64,22 +67,27 @@ public class Worker implements Runnable {
         return context.getNumVertices();
     }
 
-    Worker setVertexClass(Class<? extends Vertex> vertexClass) {
-        this.vertexClass = vertexClass;
+    public Worker<V, E, M> setEdgeParser(Function<String, E> edgeParser) {
+        this.edgeParser = edgeParser;
         return this;
     }
 
-    Worker setEdgeClass(Class<? extends Edge> edgeClass) {
-        this.edgeClass = edgeClass;
+    public Worker<V, E, M> setVertexParser(Function<String, V> vertexParser) {
+        this.vertexParser = vertexParser;
         return this;
     }
 
-    Worker setGraphPath(String path) {
+    public Worker<V, E, M> setComputeFunction(Consumer<Vertex<V, E, M>> computeFunction) {
+        this.computeFunction = computeFunction;
+        return this;
+    }
+
+    Worker<V, E, M> setGraphPath(String path) {
         this.graphPath = path;
         return this;
     }
 
-    Worker setVerticesPath(String path) {
+    Worker<V, E, M> setVerticesPath(String path) {
         this.verticesPath = path;
         return this;
     }
@@ -89,12 +97,12 @@ public class Worker implements Runnable {
      * 
      * @param message message to send.
      */
-    public void sendMessage(Message message) {
+    public void sendMessage(Message<M> message) {
         long vertexId = message.getReceiver();
         if (vertices.containsKey(vertexId)) {
             receiveMessage(message);
         } else {
-            Worker receiver = context.getWorkerFromVertexId(vertexId);
+            Worker<V, E, M> receiver = context.getWorkerFromVertexId(vertexId);
             receiver.receiveMessage(message);
         }
     }
@@ -104,52 +112,47 @@ public class Worker implements Runnable {
      * 
      * @param message message sent to vertices on this worker.
      */
-    public void receiveMessage(Message message) {
+    public void receiveMessage(Message<M> message) {
         long id = message.getReceiver();
-        Vertex receiver = vertices.get(id);
+        Vertex<V, E, M> receiver = vertices.get(id);
         if (receiver != null) {
             receiver.receiveMessage(message);
         }
     }
 
-    public Iterator<Vertex> getVertices() {
+    public Iterator<Vertex<V, E, M>> getVertices() {
         return this.vertices.values().iterator();
     }
 
-    public void loadGraph() {
+    public void loadEdges() {
         try {
-            Edge edge;
-            Vertex source, target;
+            E edge;
+            Vertex<V, E, M> source;
+            long sourceId, targetId;
             BufferedReader reader = new BufferedReader(new FileReader(graphPath));
             String line = reader.readLine();
             while (line != null) {
-                String[] parts = line.split("\t");
-                if (parts.length >= 2) {
-                    long sourceId = Long.parseLong(parts[0]);
-                    long targetId = Long.parseLong(parts[1]);
+                edge = edgeParser.apply(line);
+                sourceId = edge.source();
+                targetId = edge.target();
+                if (!vertices.containsKey(sourceId)) {
+                    source = new Vertex<>(sourceId, this);
+                    this.vertices.put(sourceId, source);
+                } else {
+                    source = vertices.get(sourceId);
+                }
 
-                    if (!vertices.containsKey(sourceId)) {
-                        source = Vertex.newInstance(vertexClass, sourceId, this);
-                        this.vertices.put(sourceId, source);
-                    } else {
-                        source = vertices.get(sourceId);
-                    }
+                if (!source.hasOuterEdgeTo(targetId)) {
+                    source.addOuterEdge(edge);
+                } else {
+                    System.out.println(
+                        String.format("Warning: duplicate edge from %d to %d!", sourceId, targetId)
+                    );
+                }
 
-                    if (!source.hasOuterEdgeTo(targetId)) {
-                        edge = Edge.newInstance(edgeClass, sourceId, targetId);
-                        edge.fromStrings(parts);
-                        source.addOuterEdge(edge);
-                    } else {
-                        System.out.println(
-                            String.format("Warning: duplicate edge from %d to %d!", sourceId, targetId)
-                        );
-                    }
-
-                    if (context.getWorkerIdFromVertexId(targetId) == this.id()) {
-                        if (!vertices.containsKey(targetId)) {
-                            target = Vertex.newInstance(vertexClass, targetId, this);
-                            this.vertices.put(targetId, target);
-                        }
+                if (context.getWorkerIdFromVertexId(targetId) == this.id()) {
+                    if (!vertices.containsKey(targetId)) {
+                        this.vertices.put(targetId, new Vertex<>(targetId, this));
                     }
                 }
                 line = reader.readLine();
@@ -161,20 +164,22 @@ public class Worker implements Runnable {
         }
     }
 
-    public void loadVertexProperties() {
+    public void loadVertices() {
         try {
-            Vertex vertex;
+            V vertexValue;
+            Vertex<V, E, M> vertex;
             BufferedReader reader = new BufferedReader(new FileReader(verticesPath));
             String line = reader.readLine();
             while (line != null) {
-                String[] parts = line.split("\t");
-                long vertexId = Long.parseLong(parts[0]);
+                vertexValue = vertexParser.apply(line);
+                long vertexId = vertexValue.id();
                 if (vertices.containsKey(vertexId)) {
                     vertex = vertices.get(vertexId);
                 } else {
-                    vertex = Vertex.newInstance(vertexClass, vertexId, this);
+                    vertex = new Vertex<>(vertexId, this);
                 }
-                vertex.fromStrings(parts);
+                vertex.setValue(vertexValue);
+                vertices.put(vertexId, vertex);
                 line = reader.readLine();
             }
             verticesLoaded = true;
@@ -192,17 +197,17 @@ public class Worker implements Runnable {
     @Override
     public void run() {
         if (graphPath != null && !graphLoaded) {
-            loadGraph();
+            loadEdges();
         }
 
         if (verticesPath != null && !verticesLoaded) {
-            loadVertexProperties();
+            loadVertices();
         }
 
         long numActiveVertices = 0;
-        for (Vertex vertex : vertices.values()) {
+        for (Vertex<V, E, M> vertex : vertices.values()) {
             if (vertex.hasMessages() || context.getSuperstep() == 0) {
-                vertex.compute();
+                computeFunction.accept(vertex);
                 numActiveVertices++;
             }
         }

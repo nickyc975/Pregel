@@ -14,37 +14,40 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
-import framework.api.Vertex;
-import framework.api.Edge;
+import framework.api.VertexValue;
+import framework.api.EdgeValue;
 import framework.utils.Combiner;
 import framework.utils.Aggregator;
 
-public class Master {
+public class Master<V extends VertexValue, E extends EdgeValue, M> {
     /**
      * Current superstep.
      */
     private long superstep = 0;
+
+    private int numPartitions;
 
     private long numActiveWorkers;
 
     /**
      * Workers registered on this master.
      */
-    private final Map<Long, Worker> workers;
+    private final Map<Long, Worker<V, E, M>> workers;
 
-    private Class<? extends Vertex> vertexClass;
-
-    private Class<? extends Edge> edgeClass;
-
-    private Path workPath;
+    private Path workPath = null;
 
     private Path graphPartsPath = null;
 
     private Path verticesPartsPath = null;
 
-    private int numPartitions;
+    private Function<String, E> edgeParser = null;
+
+    private Function<String, V> vertexParser = null;
+
+    private Consumer<Vertex<V, E, M>> computeFunction = null;
 
     public Master() {
         workers = new HashMap<>();
@@ -56,23 +59,28 @@ public class Master {
 
     long getNumVertices() {
         long sum = 0;
-        for (Worker worker : workers.values()) {
+        for (Worker<V, E, M> worker : workers.values()) {
             sum += worker.getNumVertices();
         }
         return sum;
     }
 
-    public Master setVertexClass(Class<? extends Vertex> vertexClass) {
-        this.vertexClass = vertexClass;
+    public Master<V, E, M> setEdgeParser(Function<String, E> edgeParser) {
+        this.edgeParser = edgeParser;
         return this;
     }
 
-    public Master setEdgeClass(Class<? extends Edge> edgeClass) {
-        this.edgeClass = edgeClass;
+    public Master<V, E, M> setVertexParser(Function<String, V> vertexParser) {
+        this.vertexParser = vertexParser;
         return this;
     }
 
-    public Master setWorkPath(String path) {
+    public Master<V, E, M> setComputeFunction(Consumer<Vertex<V, E, M>> computeFunction) {
+        this.computeFunction = computeFunction;
+        return this;
+    }
+
+    public Master<V, E, M> setWorkPath(String path) {
         this.workPath = FileSystems.getDefault().getPath(path);
         if (Files.exists(this.workPath)) {
             System.out.println("File \"" + this.workPath + "\" already exists!");
@@ -89,24 +97,24 @@ public class Master {
         return this;
     }
 
-    public Master setNumPartitions(int numPartitions) {
+    public Master<V, E, M> setNumPartitions(int numPartitions) {
         this.numPartitions = numPartitions;
         return this;
     }
 
-    public Master setCombiner(Combiner combiner) {
+    public Master<V, E, M> setCombiner(Combiner combiner) {
         return this;
     }
 
-    public Master setAggregator(Aggregator aggregator) {
+    public Master<V, E, M> setAggregator(Aggregator aggregator) {
         return this;
     }
 
-    public Worker getWorkerFromWorkerId(long workerId) {
+    public Worker<V, E, M> getWorkerFromWorkerId(long workerId) {
         return workers.get(workerId);
     }
 
-    public Worker getWorkerFromVertexId(long vertexId) {
+    public Worker<V, E, M> getWorkerFromVertexId(long vertexId) {
         return workers.get(getWorkerIdFromVertexId(vertexId));
     }
 
@@ -135,12 +143,12 @@ public class Master {
         reader.close();
     }
 
-    public void loadGraph(String path) {
+    public void loadEdges(String path) {
         try {
             graphPartsPath = workPath.resolve("graph").resolve("parts");
             Files.createDirectories(graphPartsPath);
             partition(path, graphPartsPath.toString(), 
-                s -> (int) Long.parseLong(s.split("\t", 2)[0]) % numPartitions
+                s -> (int) edgeParser.apply(s).source() % numPartitions
             );
         } catch (IOException e) {
             e.printStackTrace();
@@ -148,12 +156,12 @@ public class Master {
         }
     }
 
-    public void loadVertexProperties(String path) {
+    public void loadVertices(String path) {
         try {
             verticesPartsPath = workPath.resolve("vertices").resolve("parts");
             Files.createDirectories(verticesPartsPath);
             partition(path, verticesPartsPath.toString(), 
-                s -> (int) Long.parseLong(s.split("\t", 2)[0]) % numPartitions
+                s -> (int) vertexParser.apply(s).id() % numPartitions
             );
         } catch (IOException e) {
             e.printStackTrace();
@@ -161,7 +169,7 @@ public class Master {
         }
     }
 
-    public Iterator<Vertex> getVertices() {
+    public Iterator<Vertex<V, E, M>> getVertices() {
         return new VertexIterator(this);
     }
 
@@ -171,8 +179,10 @@ public class Master {
 
     public void run() {
         for (int i = 0; i < numPartitions; i++) {
-            Worker worker = new Worker(i, this);
-            worker.setVertexClass(vertexClass).setEdgeClass(edgeClass);
+            Worker<V, E, M> worker = new Worker<>(i, this);
+            worker.setEdgeParser(edgeParser)
+                  .setVertexParser(vertexParser)
+                  .setComputeFunction(computeFunction);
             if (graphPartsPath != null) {
                 worker.setGraphPath(graphPartsPath.resolve(i + ".txt").toString());
             }
@@ -186,7 +196,7 @@ public class Master {
         List<Thread> threads = new ArrayList<>();
         while (numActiveWorkers > 0) {
             numActiveWorkers = workers.size();
-            for (Entry<Long, Worker> entry: workers.entrySet()) {
+            for (Entry<Long, Worker<V, E, M>> entry: workers.entrySet()) {
                 Thread thread = new Thread(entry.getValue());
                 threads.add(thread);
                 thread.start();
@@ -204,12 +214,12 @@ public class Master {
         }
     }
 
-    private static class VertexIterator implements Iterator<Vertex> {
-        private Iterator<Worker> workers = null;
+    private class VertexIterator implements Iterator<Vertex<V, E, M>> {
+        private Iterator<Worker<V, E, M>> workers = null;
 
-        private Iterator<Vertex> vertices = null;
+        private Iterator<Vertex<V, E, M>> vertices = null;
 
-        VertexIterator(Master master) {
+        VertexIterator(Master<V, E, M> master) {
             this.workers = master.workers.values().iterator();
             if (this.workers.hasNext()) {
                 this.vertices = this.workers.next().getVertices();
@@ -222,7 +232,7 @@ public class Master {
         }
 
         @Override
-        public Vertex next() {
+        public Vertex<V, E, M> next() {
             if (vertices != null) {
                 if (vertices.hasNext()) {
                     return vertices.next();

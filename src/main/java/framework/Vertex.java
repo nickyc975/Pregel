@@ -1,39 +1,50 @@
-package framework.api;
+package framework;
 
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 
-import framework.Worker;
+import framework.api.EdgeValue;
+import framework.api.VertexValue;
 
-public abstract class Vertex {
+public final class Vertex<V extends VertexValue, E extends EdgeValue, M> {
     /**
      * Id of this vertex.
      */
-    private long id;
+    private final long id;
 
     /**
      * The worker that this vertex belongs to. 
      */
-    private Worker context;
+    private final Worker<V, E, M> context;
+
+    private V value = null;
 
     /**
      * Outer edge of this vertex.
      */
-    private Map<Long, Edge> outerEdges;
+    private Map<Long, E> outerEdges;
 
     /**
      * When current superstep is odd, use oddReceiveQueue to store 
      * the messages received in current superstep.
      */
-    private Queue<Message> oddReceiveQueue;
+    private Queue<M> oddReceiveQueue;
 
     /**
      * When current superstep is even, use evenReceiveQueue to store 
      * the messages received in current superstep.
      */
-    private Queue<Message> evenReceiveQueue;
+    private Queue<M> evenReceiveQueue;
+
+    Vertex(long id, Worker<V, E, M> context) {
+        this.id = id;
+        this.context = context;
+        this.outerEdges = new HashMap<>();
+        this.oddReceiveQueue = new LinkedList<>();
+        this.evenReceiveQueue = new LinkedList<>();
+    }
 
     /**
      * Get id of this vertex.
@@ -51,8 +62,16 @@ public abstract class Vertex {
      * 
      * @return context of this vertex.
      */
-    public final Worker context() {
+    public final Worker<V, E, M> context() {
         return this.context;
+    }
+
+    public final V getValue() {
+        return this.value;
+    }
+
+    public final void setValue(V value) {
+        this.value = value;
     }
 
     /**
@@ -62,9 +81,9 @@ public abstract class Vertex {
      * 
      * @param edge edge to add.
      */
-    public final void addOuterEdge(Edge edge) {
-        if (edge.getSource() == this.id()) {
-            outerEdges.put(edge.getTarget(), edge);
+    public final void addOuterEdge(E edge) {
+        if (edge.source() == this.id()) {
+            outerEdges.put(edge.target(), edge);
         }
     }
 
@@ -93,7 +112,7 @@ public abstract class Vertex {
      * @param target id of target vertex.
      * @return the result.
      */
-    public final Edge getOuterEdgeTo(long target) {
+    public final E getOuterEdgeTo(long target) {
         return this.outerEdges.get(target);
     }
 
@@ -102,8 +121,8 @@ public abstract class Vertex {
      * 
      * @return outer edges of this vertex.
      */
-    public final Map<Long, Edge> getOuterEdges() {
-        Map<Long, Edge> result = new HashMap<>();
+    public final Map<Long, E> getOuterEdges() {
+        Map<Long, E> result = new HashMap<>();
         result.putAll(this.outerEdges);
         return result;
     }
@@ -114,7 +133,8 @@ public abstract class Vertex {
      * @param receiver receiver id.
      * @param message message to send.
      */
-    public final void sendMessageTo(long receiver, Message message) {
+    public final void sendMessageTo(long receiver, M value) {
+        Message<M> message = new Message<>(value);
         message.setSender(this.id())
                .setReceiver(receiver)
                .setSuperstep(context.getSuperstep());
@@ -139,7 +159,7 @@ public abstract class Vertex {
      * 
      * @return message received.
      */
-    public final Message readMessage() {
+    public final M readMessage() {
         if (context.getSuperstep() % 2 == 0) {
             return oddReceiveQueue.remove();
         } else {
@@ -152,7 +172,7 @@ public abstract class Vertex {
      * 
      * @param message message to be sent.
      */
-    public final void sendMessage(Message message) {
+    public final void sendMessage(M message) {
         for (Long target : getOuterEdges().keySet()) {
             sendMessageTo(target, message);
         }
@@ -163,45 +183,11 @@ public abstract class Vertex {
      * 
      * @param message message sent to this vertex.
      */
-    public synchronized final void receiveMessage(Message message) {
+    public synchronized final void receiveMessage(Message<M> message) {
         if (context.getSuperstep() % 2 == 0) {
-            evenReceiveQueue.add(message);
+            evenReceiveQueue.add(message.getValue());
         } else {
-            oddReceiveQueue.add(message);
-        }
-    }
-
-    /**
-     * The main calculating logic of each vertex.
-     */
-    public abstract void compute();
-
-    /**
-     * Parse user defined properties of a vertex object from string.
-     * 
-     * @param strings Every string is a property. The first string is vertex id.
-     */
-    public abstract void fromStrings(String[] strings);
-
-    /**
-     * Create new instance of subclasses of Vertex.
-     * 
-     * @param klass subclass of Vertex.
-     * @param id id of new instance.
-     * @param context context of new instance.
-     * @return a new instance.
-     */
-    public static final Vertex newInstance(Class<? extends Vertex> klass, long id, Worker context) {
-        try {
-            Vertex instance = klass.newInstance();
-            instance.id = id;
-            instance.context = context;
-            instance.outerEdges = new HashMap<>();
-            instance.oddReceiveQueue = new LinkedList<>();
-            instance.evenReceiveQueue = new LinkedList<>();
-            return instance;
-        } catch (Exception e) {
-            throw new IllegalArgumentException(e);
+            oddReceiveQueue.add(message.getValue());
         }
     }
 }
