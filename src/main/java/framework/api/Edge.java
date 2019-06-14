@@ -1,12 +1,15 @@
 package framework.api;
 
 public abstract class Edge {
-    private final long source;
+    private long source;
 
-    private final long target;
+    private long target;
 
-    public Edge(long source, long target) {
+    public void setSource(long source) {
         this.source = source;
+    }
+
+    public void setTarget(long target) {
         this.target = target;
     }
 

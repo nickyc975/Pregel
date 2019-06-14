@@ -11,12 +11,12 @@ public abstract class Vertex {
     /**
      * The worker that this vertex belongs to. 
      */
-    private final Worker context;
+    protected Worker context;
 
     /**
      * Id of this vertex.
      */
-    private final long id;
+    protected long id;
 
     /**
      * Outer edge of this vertex.
@@ -35,13 +35,19 @@ public abstract class Vertex {
      */
     private final Queue<Message> evenReceiveQueue;
 
-    public Vertex(long id, Worker context) {
-        this.id = id;
-        this.context = context;
+    public Vertex() {
         this.outerEdges = new HashMap<>();
         this.oddReceiveQueue = new LinkedList<>();
         this.evenReceiveQueue = new LinkedList<>();
     }
+
+    public void setId(long id) {
+        this.id = id;
+    }
+
+    public void setContext(Worker context) {
+        this.context = context;
+    } 
 
     /**
      * Get id of this vertex.
@@ -180,5 +186,5 @@ public abstract class Vertex {
      * 
      * @param strings Every string is a property. The first string is vertex id.
      */
-    public abstract void fromStrings(String[] strArray);
+    public abstract void fromStrings(String[] strings);
 }

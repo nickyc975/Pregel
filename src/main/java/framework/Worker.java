@@ -2,7 +2,6 @@ package framework;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
-import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,13 +24,9 @@ public class Worker implements Runnable {
      */
     private final Map<Long, Vertex> vertices;
 
-    private Class<Vertex> vertexClass;
+    private Class<? extends Vertex> vertexClass;
 
-    private Constructor<Vertex> vertexConstructor;
-
-    private Class<Edge> edgeClass;
-
-    private Constructor<Edge> edgeConstructor;
+    private Class<? extends Edge> edgeClass;
 
     private String graphPath = null;
 
@@ -60,25 +55,21 @@ public class Worker implements Runnable {
         return context.getSuperstep();
     }
 
-    Worker setVertexClass(Class<Vertex> vertexClass) {
+    public long getNumVertices() {
+        return vertices.size();
+    }
+
+    public long getTotalNumVertices() {
+        return context.getNumVertices();
+    }
+
+    Worker setVertexClass(Class<? extends Vertex> vertexClass) {
         this.vertexClass = vertexClass;
-        try {
-            this.vertexConstructor = vertexClass.getConstructor(long.class, Worker.class);
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-            System.exit(-1);
-        }
         return this;
     }
 
-    Worker setEdgeClass(Class<Edge> edgeClass) {
+    Worker setEdgeClass(Class<? extends Edge> edgeClass) {
         this.edgeClass = edgeClass;
-        try {
-            this.edgeConstructor = edgeClass.getConstructor(long.class, long.class);
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-            System.exit(-1);
-        }
         return this;
     }
 
@@ -127,29 +118,37 @@ public class Worker implements Runnable {
             BufferedReader reader = new BufferedReader(new FileReader(graphPath));
             String line = reader.readLine();
             while (line != null) {
-                String[] parts = line.split(" ");
+                String[] parts = line.split("\t");
                 if (parts.length >= 2) {
                     long sourceId = Long.parseLong(parts[0]);
                     long targetId = Long.parseLong(parts[1]);
 
                     if (!vertices.containsKey(sourceId)) {
-                        source = vertexConstructor.newInstance(sourceId, this);
+                        source = vertexClass.newInstance();
+                        source.setContext(this);
+                        source.setId(sourceId);
                         this.vertices.put(sourceId, source);
                     } else {
                         source = vertices.get(sourceId);
                     }
 
                     if (!source.hasOuterEdgeTo(targetId)) {
-                        edge = edgeConstructor.newInstance(sourceId, targetId);
+                        edge = edgeClass.newInstance();
+                        edge.setSource(sourceId);
+                        edge.setTarget(targetId);
                         edge.fromStrings(parts);
                         source.addOuterEdge(edge);
                     } else {
-                        System.out.println(String.format("Warning: duplicate edge from %d to %d!", sourceId, targetId));
+                        System.out.println(
+                            String.format("Warning: duplicate edge from %d to %d!", sourceId, targetId)
+                        );
                     }
 
                     if (context.getWorkerIdFromVertexId(targetId) == this.id()) {
                         if (!vertices.containsKey(targetId)) {
-                            target = vertexConstructor.newInstance(targetId, this);
+                            target = vertexClass.newInstance();
+                            target.setContext(this);
+                            target.setId(targetId);
                             this.vertices.put(targetId, target);
                         }
                     }
@@ -159,8 +158,7 @@ public class Worker implements Runnable {
             graphLoaded = true;
             reader.close();
         } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(-1);
+            throw new RuntimeException(e);
         }
     }
 
@@ -170,12 +168,14 @@ public class Worker implements Runnable {
             BufferedReader reader = new BufferedReader(new FileReader(verticesPath));
             String line = reader.readLine();
             while (line != null) {
-                String[] parts = line.split(" ");
+                String[] parts = line.split("\t");
                 long vertexId = Long.parseLong(parts[0]);
                 if (vertices.containsKey(vertexId)) {
                     vertex = vertices.get(vertexId);
                 } else {
-                    vertex = vertexConstructor.newInstance(vertexId, this);
+                    vertex = vertexClass.newInstance();
+                    vertex.setContext(this);
+                    vertex.setId(vertexId);
                 }
                 vertex.fromStrings(parts);
                 line = reader.readLine();
@@ -204,7 +204,7 @@ public class Worker implements Runnable {
 
         long numActiveVertices = 0;
         for (Vertex vertex : vertices.values()) {
-            if (vertex.hasMessages()) {
+            if (vertex.hasMessages() || context.getSuperstep() == 0) {
                 vertex.compute();
                 numActiveVertices++;
             }

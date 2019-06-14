@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "CodeLens (Launch) - PageRank",
+            "request": "launch",
+            "mainClass": "algorithm.PageRank",
+            "projectName": "Lab_3"
+        }
+    ]
+}

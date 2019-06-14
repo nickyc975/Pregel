@@ -32,9 +32,9 @@ public class Master {
      */
     private final Map<Long, Worker> workers;
 
-    private Class<Vertex> vertexClass;
+    private Class<? extends Vertex> vertexClass;
 
-    private Class<Edge> edgeClass;
+    private Class<? extends Edge> edgeClass;
 
     private Path workPath;
 
@@ -52,12 +52,20 @@ public class Master {
         return this.superstep;
     }
 
-    public Master setVertexClass(Class<Vertex> vertexClass) {
+    long getNumVertices() {
+        long sum = 0;
+        for (Worker worker : workers.values()) {
+            sum += worker.getNumVertices();
+        }
+        return sum;
+    }
+
+    public Master setVertexClass(Class<? extends Vertex> vertexClass) {
         this.vertexClass = vertexClass;
         return this;
     }
 
-    public Master setEdgeClass(Class<Edge> edgeClass) {
+    public Master setEdgeClass(Class<? extends Edge> edgeClass) {
         this.edgeClass = edgeClass;
         return this;
     }
@@ -117,7 +125,7 @@ public class Master {
 
             String line = reader.readLine();
             while (line != null) {
-                String[] parts = line.split(" ", 2);
+                String[] parts = line.split("\t", 2);
                 int index = (int) Long.parseLong(parts[0]) % numPartitions;
                 writers[index].write(line);
                 writers[index].newLine();
@@ -146,7 +154,7 @@ public class Master {
 
             String line = reader.readLine();
             while (line != null) {
-                String[] parts = line.split(" ", 2);
+                String[] parts = line.split("\t", 2);
                 int index = (int) Long.parseLong(parts[0]) % numPartitions;
                 writers[index].write(line);
                 writers[index].newLine();
@@ -179,11 +187,13 @@ public class Master {
             workers.put((long) i, worker);
         }
 
+        numActiveWorkers = workers.size();
         List<Thread> threads = new ArrayList<>();
         while (numActiveWorkers > 0) {
             numActiveWorkers = workers.size();
             for (Entry<Long, Worker> entry: workers.entrySet()) {
                 Thread thread = new Thread(entry.getValue());
+                threads.add(thread);
                 thread.start();
             }
             for (Thread thread : threads) {
@@ -194,6 +204,8 @@ public class Master {
                 }
             }
             threads.clear();
+            System.out.println("Superstep: " + superstep);
+            superstep++;
         }
     }
 }
