@@ -17,12 +17,10 @@ import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import framework.api.VertexValue;
-import framework.api.EdgeValue;
-import framework.utils.Combiner;
-import framework.utils.Aggregator;
+import framework.utils.Tuple2;
+import framework.utils.Tuple3;
 
-public class Master<V extends VertexValue, E extends EdgeValue, M> {
+public class Master<V, E, M> {
     /**
      * Current superstep.
      */
@@ -43,9 +41,9 @@ public class Master<V extends VertexValue, E extends EdgeValue, M> {
 
     private Path verticesPartsPath = null;
 
-    private Function<String, E> edgeParser = null;
+    private Function<String, Tuple3<Long, Long, E>> edgeParser = null;
 
-    private Function<String, V> vertexParser = null;
+    private Function<String, Tuple2<Long, V>> vertexParser = null;
 
     private Consumer<Vertex<V, E, M>> computeFunction = null;
 
@@ -65,12 +63,12 @@ public class Master<V extends VertexValue, E extends EdgeValue, M> {
         return sum;
     }
 
-    public Master<V, E, M> setEdgeParser(Function<String, E> edgeParser) {
+    public Master<V, E, M> setEdgeParser(Function<String, Tuple3<Long, Long, E>> edgeParser) {
         this.edgeParser = edgeParser;
         return this;
     }
 
-    public Master<V, E, M> setVertexParser(Function<String, V> vertexParser) {
+    public Master<V, E, M> setVertexParser(Function<String, Tuple2<Long, V>> vertexParser) {
         this.vertexParser = vertexParser;
         return this;
     }
@@ -148,7 +146,7 @@ public class Master<V extends VertexValue, E extends EdgeValue, M> {
             graphPartsPath = workPath.resolve("graph").resolve("parts");
             Files.createDirectories(graphPartsPath);
             partition(path, graphPartsPath.toString(), 
-                s -> (int) edgeParser.apply(s).source() % numPartitions
+                s -> (int) (edgeParser.apply(s)._1 % numPartitions)
             );
         } catch (IOException e) {
             e.printStackTrace();
@@ -161,7 +159,7 @@ public class Master<V extends VertexValue, E extends EdgeValue, M> {
             verticesPartsPath = workPath.resolve("vertices").resolve("parts");
             Files.createDirectories(verticesPartsPath);
             partition(path, verticesPartsPath.toString(), 
-                s -> (int) vertexParser.apply(s).id() % numPartitions
+                s -> (int) (vertexParser.apply(s)._1 % numPartitions)
             );
         } catch (IOException e) {
             e.printStackTrace();

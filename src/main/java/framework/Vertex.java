@@ -5,10 +5,9 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 
-import framework.api.EdgeValue;
-import framework.api.VertexValue;
+import framework.utils.Tuple3;
 
-public final class Vertex<V extends VertexValue, E extends EdgeValue, M> {
+public final class Vertex<V, E, M> {
     /**
      * Id of this vertex.
      */
@@ -19,12 +18,15 @@ public final class Vertex<V extends VertexValue, E extends EdgeValue, M> {
      */
     private final Worker<V, E, M> context;
 
+    /**
+     * Value of this vertex.
+     */
     private V value = null;
 
     /**
-     * Outer edge of this vertex.
+     * Outer edges of this vertex.
      */
-    private Map<Long, E> outerEdges;
+    private Map<Long, Tuple3<Long, Long, E>> outerEdges;
 
     /**
      * When current superstep is odd, use oddReceiveQueue to store 
@@ -81,9 +83,9 @@ public final class Vertex<V extends VertexValue, E extends EdgeValue, M> {
      * 
      * @param edge edge to add.
      */
-    public final void addOuterEdge(E edge) {
-        if (edge.source() == this.id()) {
-            outerEdges.put(edge.target(), edge);
+    public final void addOuterEdge(Tuple3<Long, Long, E> edge) {
+        if (edge._1.equals(this.id())) {
+            outerEdges.put(edge._2, edge);
         }
     }
 
@@ -112,7 +114,7 @@ public final class Vertex<V extends VertexValue, E extends EdgeValue, M> {
      * @param target id of target vertex.
      * @return the result.
      */
-    public final E getOuterEdgeTo(long target) {
+    public final Tuple3<Long, Long, E> getOuterEdgeTo(long target) {
         return this.outerEdges.get(target);
     }
 
@@ -121,8 +123,8 @@ public final class Vertex<V extends VertexValue, E extends EdgeValue, M> {
      * 
      * @return outer edges of this vertex.
      */
-    public final Map<Long, E> getOuterEdges() {
-        Map<Long, E> result = new HashMap<>();
+    public final Map<Long, Tuple3<Long, Long, E>> getOuterEdges() {
+        Map<Long, Tuple3<Long, Long, E>> result = new HashMap<>();
         result.putAll(this.outerEdges);
         return result;
     }

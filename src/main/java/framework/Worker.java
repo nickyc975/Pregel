@@ -8,10 +8,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import framework.api.EdgeValue;
-import framework.api.VertexValue;
+import framework.utils.Tuple2;
+import framework.utils.Tuple3;
 
-public class Worker<V extends VertexValue, E extends EdgeValue, M> implements Runnable {
+public class Worker<V, E, M> implements Runnable {
     private final long id;
 
     /**
@@ -34,9 +34,9 @@ public class Worker<V extends VertexValue, E extends EdgeValue, M> implements Ru
 
     private boolean verticesLoaded = false;
 
-    private Function<String, E> edgeParser = null;
+    private Function<String, Tuple3<Long, Long, E>> edgeParser = null;
 
-    private Function<String, V> vertexParser = null;
+    private Function<String, Tuple2<Long, V>> vertexParser = null;
 
     private Consumer<Vertex<V, E, M>> computeFunction = null;
 
@@ -67,12 +67,12 @@ public class Worker<V extends VertexValue, E extends EdgeValue, M> implements Ru
         return context.getNumVertices();
     }
 
-    public Worker<V, E, M> setEdgeParser(Function<String, E> edgeParser) {
+    public Worker<V, E, M> setEdgeParser(Function<String, Tuple3<Long, Long, E>> edgeParser) {
         this.edgeParser = edgeParser;
         return this;
     }
 
-    public Worker<V, E, M> setVertexParser(Function<String, V> vertexParser) {
+    public Worker<V, E, M> setVertexParser(Function<String, Tuple2<Long, V>> vertexParser) {
         this.vertexParser = vertexParser;
         return this;
     }
@@ -126,33 +126,30 @@ public class Worker<V extends VertexValue, E extends EdgeValue, M> implements Ru
 
     public void loadEdges() {
         try {
-            E edge;
             Vertex<V, E, M> source;
-            long sourceId, targetId;
+            Tuple3<Long, Long, E> edge;
             BufferedReader reader = new BufferedReader(new FileReader(graphPath));
             String line = reader.readLine();
             while (line != null) {
                 edge = edgeParser.apply(line);
-                sourceId = edge.source();
-                targetId = edge.target();
-                if (!vertices.containsKey(sourceId)) {
-                    source = new Vertex<>(sourceId, this);
-                    this.vertices.put(sourceId, source);
+                if (!vertices.containsKey(edge._1)) {
+                    source = new Vertex<>(edge._1, this);
+                    this.vertices.put(edge._1, source);
                 } else {
-                    source = vertices.get(sourceId);
+                    source = vertices.get(edge._1);
                 }
 
-                if (!source.hasOuterEdgeTo(targetId)) {
+                if (!source.hasOuterEdgeTo(edge._2)) {
                     source.addOuterEdge(edge);
                 } else {
                     System.out.println(
-                        String.format("Warning: duplicate edge from %d to %d!", sourceId, targetId)
+                        String.format("Warning: duplicate edge from %d to %d!", edge._1, edge._2)
                     );
                 }
 
-                if (context.getWorkerIdFromVertexId(targetId) == this.id()) {
-                    if (!vertices.containsKey(targetId)) {
-                        this.vertices.put(targetId, new Vertex<>(targetId, this));
+                if (context.getWorkerIdFromVertexId(edge._2) == this.id()) {
+                    if (!vertices.containsKey(edge._2)) {
+                        this.vertices.put(edge._2, new Vertex<>(edge._2, this));
                     }
                 }
                 line = reader.readLine();
@@ -166,19 +163,19 @@ public class Worker<V extends VertexValue, E extends EdgeValue, M> implements Ru
 
     public void loadVertices() {
         try {
-            V vertexValue;
             Vertex<V, E, M> vertex;
+            Tuple2<Long, V> vertexValue;
             BufferedReader reader = new BufferedReader(new FileReader(verticesPath));
             String line = reader.readLine();
             while (line != null) {
                 vertexValue = vertexParser.apply(line);
-                long vertexId = vertexValue.id();
+                long vertexId = vertexValue._1;
                 if (vertices.containsKey(vertexId)) {
                     vertex = vertices.get(vertexId);
                 } else {
                     vertex = new Vertex<>(vertexId, this);
                 }
-                vertex.setValue(vertexValue);
+                vertex.setValue(vertexValue._2);
                 vertices.put(vertexId, vertex);
                 line = reader.readLine();
             }

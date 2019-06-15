@@ -1,4 +1,4 @@
-package framework.utils;
+package framework;
 
 public abstract class Combiner {
 
