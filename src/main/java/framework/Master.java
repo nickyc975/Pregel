@@ -91,7 +91,7 @@ public class Master<V, E, M> {
     /**
      * Aggregators.
      */
-    private Map<String, Aggregator<V, ?>> aggregators = null;
+    private Map<String, Aggregator<Vertex<V, E, M>, ?>> aggregators = null;
 
     /**
      * Aggregated values.
@@ -168,12 +168,12 @@ public class Master<V, E, M> {
         return this;
     }
 
-    public Master<V, E, M> addAggregator(Aggregator<V, ?> aggregator) {
+    public Master<V, E, M> addAggregator(Aggregator<Vertex<V, E, M>, ?> aggregator) {
         this.aggregators.put(aggregator.getClass().getName(), aggregator);
         return this;
     }
 
-    public Master<V, E, M> addAggregator(String valueName, Aggregator<V, ?> aggregator) {
+    public Master<V, E, M> addAggregator(String valueName, Aggregator<Vertex<V, E, M>, ?> aggregator) {
         this.aggregators.put(valueName, aggregator);
         return this;
     }
@@ -278,6 +278,32 @@ public class Master<V, E, M> {
     }
 
     /**
+     * Aggregate values from workers.
+     * 
+     * @param valueName name of value.
+     * @param value value
+     */
+    @SuppressWarnings("unchecked")
+    synchronized <A> void aggregate(String valueName, A value) {
+        A initial = (A)aggregatedValues.get(valueName);
+        if (initial == null) {
+            initial = value;
+        } else {
+            Aggregator<Vertex<V, E, M>, A> aggregator = 
+                    (Aggregator<Vertex<V, E, M>, A>)aggregators.get(valueName);
+            initial = aggregator.aggregate(initial, value);
+        }
+        ((Map<String, A>)aggregatedValues).put(valueName, initial);
+    }
+
+    /**
+     * @return the aggregatedValues
+     */
+    public Object getAggregatedValue(String valueName) {
+        return aggregatedValues.get(valueName);
+    }
+
+    /**
      * Start calculating.
      */
     public void run() {
@@ -312,6 +338,12 @@ public class Master<V, E, M> {
                 } catch (InterruptedException ignored) {
 
                 }
+            }
+            for (Entry<String, ?> entry : aggregatedValues.entrySet()) {
+                aggregatedValues.put(entry.getKey(), null);
+            }
+            for (Worker<V, E, M> worker : workers.values()) {
+                worker.report();
             }
             threads.clear();
             System.out.println("Superstep: " + superstep);

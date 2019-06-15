@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
+import framework.Aggregator;
 import framework.Combiner;
 import framework.Master;
 import framework.Vertex;
@@ -27,6 +28,16 @@ public class SSSP {
                   @Override
                   public Double combine(Double a, Double b) {
                       return Double.min(a, b);
+                  }
+              }).addAggregator("numEdges", new Aggregator<Vertex<Double, Double, Double>, Integer>() {
+                  @Override
+                  public Integer report(Vertex<Double, Double, Double> vertex) {
+                      return vertex.getOuterEdges().size();
+                  }
+
+                  @Override
+                  public Integer aggregate(Integer a, Integer b) {
+                      return a + b;
                   }
               });
         Consumer<Vertex<Double, Double, Double>> computeFunction = vertex -> {
@@ -57,6 +68,8 @@ public class SSSP {
         master.setComputeFunction(computeFunction);
         master.loadEdges("data/web-Google.txt");
         master.run();
+
+        System.out.println(master.getAggregatedValue("numEdges"));
 
         Iterator<Vertex<Double, Double, Double>> vertices = master.getVertices();
         try {

@@ -92,7 +92,7 @@ public class Worker<V, E, M> implements Runnable {
     /**
      * Aggregators.
      */
-    private Map<String, Aggregator<V, ?>> aggregators = null;
+    private Map<String, Aggregator<Vertex<V, E, M>, ?>> aggregators = null;
 
     /**
      * Aggregated values.
@@ -149,7 +149,7 @@ public class Worker<V, E, M> implements Runnable {
         return this;
     }
 
-    public Worker<V, E, M> setAggregators(Map<String, Aggregator<V, ?>> aggregators) {
+    public Worker<V, E, M> setAggregators(Map<String, Aggregator<Vertex<V, E, M>, ?>> aggregators) {
         this.aggregators.putAll(aggregators);
         return this;
     }
@@ -327,10 +327,20 @@ public class Worker<V, E, M> implements Runnable {
         numActiveVertices--;
     }
 
+    @SuppressWarnings("unchecked")
+    void report() {
+        Map<String, Object> values = (Map<String, Object>) aggregatedValues;
+        for (Entry<String, Object> value : values.entrySet()) {
+            context.aggregate(value.getKey(), value.getValue());
+            values.put(value.getKey(), null);
+        }
+    }
+
     /**
      * Do the computing.
      */
     @Override
+    @SuppressWarnings("unchecked")
     public void run() {
         if (edgesPath != null && !edgesLoaded) {
             loadEdges();
@@ -341,8 +351,22 @@ public class Worker<V, E, M> implements Runnable {
         }
 
         numActiveVertices = vertices.size();
+        Map<String, Object> values = (Map<String, Object>) aggregatedValues;
         for (Vertex<V, E, M> vertex : vertices.values()) {
             computeFunction.accept(vertex);
+            for (Entry<String, Aggregator<Vertex<V, E, M>, ?>> aggregatorEntry : aggregators.entrySet()) {
+                String key = aggregatorEntry.getKey();
+                Aggregator<Vertex<V, E, M>, Object> aggregator = (Aggregator<Vertex<V, E, M>, Object>) aggregatorEntry.getValue();
+
+                Object value = aggregator.report(vertex);
+                Object initial = aggregatedValues.get(key);
+                if (initial != null) {
+                    initial = aggregator.aggregate(initial, value);
+                } else {
+                    initial = value;
+                }
+                values.put(key, initial);
+            }
         }
         
         for (Entry<Long, Queue<Message<M>>> entry : sendQueues.entrySet()) {
