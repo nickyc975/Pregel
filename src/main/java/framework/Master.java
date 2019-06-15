@@ -83,8 +83,25 @@ public class Master<V, E, M> {
      */
     private Consumer<Vertex<V, E, M>> computeFunction = null;
 
+    /**
+     * User defined message combiner.
+     */
+    private Combiner<M> combiner = null;
+
+    /**
+     * Aggregators.
+     */
+    private Map<String, Aggregator<V, ?>> aggregators = null;
+
+    /**
+     * Aggregated values.
+     */
+    private Map<String, ?> aggregatedValues = null;
+
     public Master() {
         workers = new HashMap<>();
+        aggregators = new HashMap<>();
+        aggregatedValues = new HashMap<>();
     }
 
     long getSuperstep() {
@@ -146,11 +163,18 @@ public class Master<V, E, M> {
         return this;
     }
 
-    public Master<V, E, M> setCombiner(Combiner combiner) {
+    public Master<V, E, M> setCombiner(Combiner<M> combiner) {
+        this.combiner = combiner;
         return this;
     }
 
-    public Master<V, E, M> setAggregator(Aggregator aggregator) {
+    public Master<V, E, M> addAggregator(Aggregator<V, ?> aggregator) {
+        this.aggregators.put(aggregator.getClass().getName(), aggregator);
+        return this;
+    }
+
+    public Master<V, E, M> addAggregator(String valueName, Aggregator<V, ?> aggregator) {
+        this.aggregators.put(valueName, aggregator);
         return this;
     }
 
@@ -261,7 +285,9 @@ public class Master<V, E, M> {
             Worker<V, E, M> worker = new Worker<>(i, this);
             worker.setEdgeParser(edgeParser)
                   .setVertexParser(vertexParser)
-                  .setComputeFunction(computeFunction);
+                  .setComputeFunction(computeFunction)
+                  .setCombiner(combiner)
+                  .setAggregators(aggregators);
             if (edgesPartsPath != null) {
                 worker.setEdgesPath(edgesPartsPath.resolve(i + ".txt").toString());
             }

@@ -1,5 +1,5 @@
 package framework;
 
-public abstract class Combiner {
-
+public interface Combiner<M> {
+    public M combine(M a, M b);
 }

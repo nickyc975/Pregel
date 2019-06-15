@@ -26,19 +26,19 @@ public final class Vertex<V, E, M> {
     /**
      * Outer edges of this vertex.
      */
-    private Map<Long, Tuple3<Long, Long, E>> outerEdges;
+    private final Map<Long, Tuple3<Long, Long, E>> outerEdges;
 
     /**
      * When current superstep is odd, use oddReceiveQueue to store 
      * the messages received in current superstep.
      */
-    private Queue<M> oddReceiveQueue;
+    private final Queue<M> oddReceiveQueue;
 
     /**
      * When current superstep is even, use evenReceiveQueue to store 
      * the messages received in current superstep.
      */
-    private Queue<M> evenReceiveQueue;
+    private final Queue<M> evenReceiveQueue;
 
     Vertex(long id, Worker<V, E, M> context) {
         this.id = id;
@@ -144,6 +144,17 @@ public final class Vertex<V, E, M> {
     }
 
     /**
+     * Send a message to all neighbors.
+     * 
+     * @param message message to be sent.
+     */
+    public final void sendMessage(M message) {
+        for (Long target : getOuterEdges().keySet()) {
+            sendMessageTo(target, message);
+        }
+    }
+
+    /**
      * Check if this vertex has messages to deal with.
      * 
      * @return true if has messages, false otherwise.
@@ -170,14 +181,10 @@ public final class Vertex<V, E, M> {
     }
 
     /**
-     * Send a message to all neighbors.
-     * 
-     * @param message message to be sent.
+     * Tell the worker that this vertex is done.
      */
-    public final void sendMessage(M message) {
-        for (Long target : getOuterEdges().keySet()) {
-            sendMessageTo(target, message);
-        }
+    public void voteToHalt() {
+        context.markAsDone(id());
     }
 
     /**
@@ -185,18 +192,39 @@ public final class Vertex<V, E, M> {
      * 
      * @param message message sent to this vertex.
      */
-    public synchronized final void receiveMessage(Message<M> message) {
+    synchronized final void receiveMessage(M message) {
         if (context.getSuperstep() % 2 == 0) {
-            evenReceiveQueue.add(message.getValue());
+            evenReceiveQueue.add(message);
         } else {
-            oddReceiveQueue.add(message.getValue());
+            oddReceiveQueue.add(message);
         }
     }
 
     /**
-     * Tell the worker that this vertex is done.
+     * Check if this vertex has messages to deal with in next superstep.
+     * 
+     * @return true if has messages, false otherwise.
      */
-    public void voteToHalt() {
-        context.markAsDone(id());
+    synchronized final boolean hasNextStepMessage() {
+        if (context.getSuperstep() % 2 == 0) {
+            return !evenReceiveQueue.isEmpty();
+        } else {
+            return !oddReceiveQueue.isEmpty();
+        }
+    }
+
+    /**
+     * Read message that will be used in next super step.
+     * 
+     * Workers invoke this method to perform message combining.
+     * 
+     * @return A message in the next superstep receive queue.
+     */
+    synchronized final M readNextStepMessage() {
+        if (context.getSuperstep() % 2 == 0) {
+            return evenReceiveQueue.remove();
+        } else {
+            return oddReceiveQueue.remove();
+        }
     }
 }

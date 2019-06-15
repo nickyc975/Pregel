@@ -1,7 +1,7 @@
 package framework;
 
 final class Message<M> {
-    private final M value;
+    private M value;
     private long sender;
     private long receiver;
     private long superstep;
@@ -24,6 +24,11 @@ final class Message<M> {
 
     final long getSuperstep() {
         return this.superstep;
+    }
+
+    final Message<M> setValue(M value) {
+        this.value = value;
+        return this;
     }
 
     final Message<M> setSender(long sender) {

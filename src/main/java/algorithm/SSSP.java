@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
+import framework.Combiner;
 import framework.Master;
 import framework.Vertex;
 import framework.utils.Tuple2;
@@ -22,6 +23,11 @@ public class SSSP {
               }).setVertexParser(s -> {
                   String[] parts = s.split("\t");
                   return new Tuple2<>(Long.parseLong(parts[0]), 0.0);
+              }).setCombiner(new Combiner<Double>(){
+                  @Override
+                  public Double combine(Double a, Double b) {
+                      return Double.min(a, b);
+                  }
               });
         Consumer<Vertex<Double, Double, Double>> computeFunction = vertex -> {
             double minValue = vertex.id() == 0 ? 0 : Double.POSITIVE_INFINITY;

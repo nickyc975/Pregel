@@ -4,7 +4,10 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
+import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -12,6 +15,16 @@ import framework.utils.Tuple2;
 import framework.utils.Tuple3;
 
 public class Worker<V, E, M> implements Runnable {
+    /**
+     * Sending threshold. When the number of messages in queue is larger
+     * than the threshold, the messages will be sent and the queue will 
+     * be cleared.
+     */
+    private static final int sendThreshold = 10;
+
+    /**
+     * Worker id.
+     */
     private final long id;
 
     /**
@@ -66,10 +79,33 @@ public class Worker<V, E, M> implements Runnable {
      */
     private Consumer<Vertex<V, E, M>> computeFunction = null;
 
+    /**
+     * User defined message combiner.
+     */
+    private Combiner<M> combiner = null;
+
+    /**
+     * Send queues for target vertices.
+     */
+    private Map<Long, Queue<Message<M>>> sendQueues = null;
+
+    /**
+     * Aggregators.
+     */
+    private Map<String, Aggregator<V, ?>> aggregators = null;
+
+    /**
+     * Aggregated values.
+     */
+    private Map<String, ?> aggregatedValues = null;
+
     Worker(long id, Master<V, E, M> context) {
         this.id = id;
         this.context = context;
         this.vertices = new HashMap<>();
+        this.sendQueues = new HashMap<>();
+        this.aggregators = new HashMap<>();
+        this.aggregatedValues = new HashMap<>();
     }
 
     long id() {
@@ -108,6 +144,16 @@ public class Worker<V, E, M> implements Runnable {
         return this;
     }
 
+    public Worker<V, E, M> setCombiner(Combiner<M> combiner) {
+        this.combiner = combiner;
+        return this;
+    }
+
+    public Worker<V, E, M> setAggregators(Map<String, Aggregator<V, ?>> aggregators) {
+        this.aggregators.putAll(aggregators);
+        return this;
+    }
+
     Worker<V, E, M> setEdgesPath(String path) {
         this.edgesPath = path;
         return this;
@@ -119,17 +165,50 @@ public class Worker<V, E, M> implements Runnable {
     }
 
     /**
+     * Send messages to the given vertex.
+     * 
+     * @param vertexId id of the target vertex.
+     * @param sendQueue message queue.
+     */
+    private void sendMessagesTo(long vertexId, Queue<Message<M>> sendQueue) {
+        Worker<V, E, M> receiver;
+        if (vertices.containsKey(vertexId)) {
+            receiver = this;
+        } else {
+            receiver = context.getWorkerFromVertexId(vertexId);
+        }
+
+        while (!sendQueue.isEmpty()) {
+            receiver.receiveMessage(sendQueue.poll());
+        }
+    }
+
+    /**
      * Vertices will invoke this to send message to other vertices.
      * 
      * @param message message to send.
      */
     public void sendMessage(Message<M> message) {
         long vertexId = message.getReceiver();
-        if (vertices.containsKey(vertexId)) {
-            receiveMessage(message);
-        } else {
-            Worker<V, E, M> receiver = context.getWorkerFromVertexId(vertexId);
-            receiver.receiveMessage(message);
+        Queue<Message<M>> sendQueue = sendQueues.get(vertexId);
+        if (sendQueue == null) {
+            sendQueue = new LinkedList<>();
+            sendQueues.put(vertexId, sendQueue);
+        }
+
+        Message<M> initial = sendQueue.poll();
+        if (this.combiner != null) {
+            if (initial == null) {
+                initial = message;
+            } else {
+                M value = combiner.combine(initial.getValue(), message.getValue());
+                initial.setValue(value);
+            }
+        }
+        sendQueue.offer(initial);
+
+        if (sendQueue.size() > sendThreshold) {
+            sendMessagesTo(vertexId, sendQueue);
         }
     }
 
@@ -142,7 +221,13 @@ public class Worker<V, E, M> implements Runnable {
         long id = message.getReceiver();
         Vertex<V, E, M> receiver = vertices.get(id);
         if (receiver != null) {
-            receiver.receiveMessage(message);
+            M value = message.getValue();
+            synchronized (receiver) {
+                if (combiner != null && receiver.hasNextStepMessage()) {
+                    value = combiner.combine(receiver.readNextStepMessage(), value);
+                }
+                receiver.receiveMessage(value);
+            }
         }
     }
 
@@ -259,6 +344,11 @@ public class Worker<V, E, M> implements Runnable {
         for (Vertex<V, E, M> vertex : vertices.values()) {
             computeFunction.accept(vertex);
         }
+        
+        for (Entry<Long, Queue<Message<M>>> entry : sendQueues.entrySet()) {
+            sendMessagesTo(entry.getKey(), entry.getValue());
+        }
+
         if (numActiveVertices == 0) {
             voteToHalt();
         }
