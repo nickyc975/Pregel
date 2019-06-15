@@ -192,4 +192,11 @@ public final class Vertex<V, E, M> {
             oddReceiveQueue.add(message.getValue());
         }
     }
+
+    /**
+     * Tell the worker that this vertex is done.
+     */
+    public void voteToHalt() {
+        context.markAsDone(id());
+    }
 }

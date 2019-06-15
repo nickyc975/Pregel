@@ -25,7 +25,11 @@ public class PageRank {
               });
 
         Consumer<Vertex<Double, Void, Double>> computeFunction = vertex -> {
-            if (vertex.context().getSuperstep() >= 1) {
+            if (vertex.getValue() == null) {
+                vertex.setValue(0.0);
+            }
+
+            if (vertex.hasMessages()) {
                 double sum = 0;
                 while (vertex.hasMessages()) {
                     sum += vertex.readMessage();
@@ -33,10 +37,12 @@ public class PageRank {
                 double value = 0.15 / vertex.context().getTotalNumVertices() + 0.85 * sum;
                 vertex.setValue(value);
             }
+
+            int n = vertex.getOuterEdges().size();
+            vertex.sendMessage(vertex.getValue() / n);
     
-            if (vertex.context().getSuperstep() < 30) {
-                int n = vertex.getOuterEdges().size();
-                vertex.sendMessage(vertex.getValue() / n);
+            if (vertex.context().getSuperstep() > 30) {
+                vertex.voteToHalt();
             }
         };
 

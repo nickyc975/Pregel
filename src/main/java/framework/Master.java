@@ -26,8 +26,14 @@ public class Master<V, E, M> {
      */
     private long superstep = 0;
 
+    /**
+     * Number of graph partitions.
+     */
     private int numPartitions;
 
+    /**
+     * Number of active workers.
+     */
     private long numActiveWorkers;
 
     /**
@@ -35,16 +41,46 @@ public class Master<V, E, M> {
      */
     private final Map<Long, Worker<V, E, M>> workers;
 
+    /**
+     * The root output path. All outputs will be under this path.
+     */
     private Path workPath = null;
 
-    private Path graphPartsPath = null;
+    /**
+     * The directory of saving edges partitions.
+     */
+    private Path edgesPartsPath = null;
 
+    /**
+     * The directory of saving vertices partitions.
+     */
     private Path verticesPartsPath = null;
 
+    /**
+     * User defined function to parse edges from strings.
+     * 
+     * The param of the function is one line from the input file.
+     * The returned value of the function is a 3 elements tuple with the first 
+     * element as the source of the edge, the second element as the target of 
+     * the edge and the third element as the user defined properties of the edge.
+     */
     private Function<String, Tuple3<Long, Long, E>> edgeParser = null;
 
+    /**
+     * User defined function to parse vertices from strings.
+     * 
+     * The param of the function is one line from the input file.
+     * The returned value of the function is a 2 elements tuple with the first 
+     * element as the the id of the vertex and the second value as user defined 
+     * properties of the vertex.
+     */
     private Function<String, Tuple2<Long, V>> vertexParser = null;
 
+    /**
+     * User defined computing function that do the actual computing job.
+     * 
+     * The param of the function is one of the vertices.
+     */
     private Consumer<Vertex<V, E, M>> computeFunction = null;
 
     public Master() {
@@ -55,6 +91,11 @@ public class Master<V, E, M> {
         return this.superstep;
     }
 
+    /**
+     * Get the total number of vertices on all workers.
+     * 
+     * @return total number of vertices.
+     */
     long getNumVertices() {
         long sum = 0;
         for (Worker<V, E, M> worker : workers.values()) {
@@ -78,6 +119,12 @@ public class Master<V, E, M> {
         return this;
     }
 
+    /**
+     * Set and create working directory.
+     * 
+     * @param path path of working directory.
+     * @return the master itself.
+     */
     public Master<V, E, M> setWorkPath(String path) {
         this.workPath = FileSystems.getDefault().getPath(path);
         if (Files.exists(this.workPath)) {
@@ -87,7 +134,6 @@ public class Master<V, E, M> {
         
         try {
             Files.createDirectories(workPath);
-            
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(-1);
@@ -120,6 +166,16 @@ public class Master<V, E, M> {
         return vertexId % numPartitions;
     }
 
+    /**
+     * Partition the given inputFile to the outputDir with partition index 
+     * calculating function calIndexFunc.
+     * 
+     * @param inputFile the file to be partitioned.
+     * @param outputDir the output directory.
+     * @param calIndexFunc the index calculating function, the param is one 
+     * line from the input file, the returned value is the partition index 
+     * of that line.
+     */
     private void partition(String inputFile, String outputDir, Function<String, Integer> calIndexFunc) throws IOException {
         BufferedReader reader = new BufferedReader(new FileReader(inputFile));
         BufferedWriter[] writers = new BufferedWriter[numPartitions];
@@ -141,11 +197,16 @@ public class Master<V, E, M> {
         reader.close();
     }
 
+    /**
+     * Read and partition the edges file.
+     * 
+     * @param path file path.
+     */
     public void loadEdges(String path) {
         try {
-            graphPartsPath = workPath.resolve("graph").resolve("parts");
-            Files.createDirectories(graphPartsPath);
-            partition(path, graphPartsPath.toString(), 
+            edgesPartsPath = workPath.resolve("graph").resolve("parts");
+            Files.createDirectories(edgesPartsPath);
+            partition(path, edgesPartsPath.toString(), 
                 s -> (int) (edgeParser.apply(s)._1 % numPartitions)
             );
         } catch (IOException e) {
@@ -154,6 +215,11 @@ public class Master<V, E, M> {
         }
     }
 
+    /**
+     * Read and partition the vertices file.
+     * 
+     * @param path file path.
+     */
     public void loadVertices(String path) {
         try {
             verticesPartsPath = workPath.resolve("vertices").resolve("parts");
@@ -167,22 +233,37 @@ public class Master<V, E, M> {
         }
     }
 
+    /**
+     * Get an iterator of all vertices.
+     * 
+     * @return an iterator of all vertices.
+     */
     public Iterator<Vertex<V, E, M>> getVertices() {
         return new VertexIterator(this);
     }
 
-    synchronized void setDone(long workerId) {
+    /**
+     * Mark worker with workerId as done.
+     * 
+     * A worker is done means all vertices on that worker is inactive in a superstep.
+     * 
+     * @param workerId worker id.
+     */
+    synchronized void markAsDone(long workerId) {
         numActiveWorkers--;
     }
 
+    /**
+     * Start calculating.
+     */
     public void run() {
         for (int i = 0; i < numPartitions; i++) {
             Worker<V, E, M> worker = new Worker<>(i, this);
             worker.setEdgeParser(edgeParser)
                   .setVertexParser(vertexParser)
                   .setComputeFunction(computeFunction);
-            if (graphPartsPath != null) {
-                worker.setGraphPath(graphPartsPath.resolve(i + ".txt").toString());
+            if (edgesPartsPath != null) {
+                worker.setEdgesPath(edgesPartsPath.resolve(i + ".txt").toString());
             }
             if (verticesPartsPath != null) {
                 worker.setVerticesPath(verticesPartsPath.resolve(i + ".txt").toString());
@@ -212,6 +293,9 @@ public class Master<V, E, M> {
         }
     }
 
+    /**
+     * An implementation of Iterator interface. Used to iterate all vertices.
+     */
     private class VertexIterator implements Iterator<Vertex<V, E, M>> {
         private Iterator<Worker<V, E, M>> workers = null;
 

@@ -20,24 +20,50 @@ public class Worker<V, E, M> implements Runnable {
     private final Master<V, E, M> context;
 
     /**
+     * Number of active vertices.
+     */
+    private long numActiveVertices;
+
+    /**
      * Vertices on this worker.
      * 
      * The key of the map is the id of the corresponding vertex.
      */
     private final Map<Long, Vertex<V, E, M>> vertices;
 
-    private String graphPath = null;
+    /**
+     * The path of the edges partition file that is assigned to this worker.
+     */
+    private String edgesPath = null;
 
-    private boolean graphLoaded = false;
+    /**
+     * Indicate whether the edges are loaded.
+     */
+    private boolean edgesLoaded = false;
 
+    /**
+     * The path of the vertices partition file that is assigned to this worker.
+     */
     private String verticesPath = null;
 
+    /**
+     * Indicate whether the vertices are loaded.
+     */
     private boolean verticesLoaded = false;
 
+    /**
+     * Same as Master.edgeParser.
+     */
     private Function<String, Tuple3<Long, Long, E>> edgeParser = null;
 
+    /**
+     * Same as Master.vertexParser.
+     */
     private Function<String, Tuple2<Long, V>> vertexParser = null;
 
+    /**
+     * Same as Master.computeFunction.
+     */
     private Consumer<Vertex<V, E, M>> computeFunction = null;
 
     Worker(long id, Master<V, E, M> context) {
@@ -82,8 +108,8 @@ public class Worker<V, E, M> implements Runnable {
         return this;
     }
 
-    Worker<V, E, M> setGraphPath(String path) {
-        this.graphPath = path;
+    Worker<V, E, M> setEdgesPath(String path) {
+        this.edgesPath = path;
         return this;
     }
 
@@ -120,15 +146,23 @@ public class Worker<V, E, M> implements Runnable {
         }
     }
 
+    /**
+     * Get iterator of vertices on this worker.
+     * 
+     * @return iterator of vertices on this worker.
+     */
     public Iterator<Vertex<V, E, M>> getVertices() {
         return this.vertices.values().iterator();
     }
 
+    /**
+     * Load edges partition.
+     */
     public void loadEdges() {
         try {
             Vertex<V, E, M> source;
             Tuple3<Long, Long, E> edge;
-            BufferedReader reader = new BufferedReader(new FileReader(graphPath));
+            BufferedReader reader = new BufferedReader(new FileReader(edgesPath));
             String line = reader.readLine();
             while (line != null) {
                 edge = edgeParser.apply(line);
@@ -154,13 +188,16 @@ public class Worker<V, E, M> implements Runnable {
                 }
                 line = reader.readLine();
             }
-            graphLoaded = true;
+            edgesLoaded = true;
             reader.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
+    /**
+     * Load vertices partition.
+     */
     public void loadVertices() {
         try {
             Vertex<V, E, M> vertex;
@@ -187,13 +224,30 @@ public class Worker<V, E, M> implements Runnable {
         }
     }
 
-    public void voteToHalt() {
-        context.setDone(id());
+    /**
+     * Tell master that this worker is done.
+     */
+    void voteToHalt() {
+        context.markAsDone(id());
     }
 
+    /**
+     * Mark vertex with vertexId as done.
+     * 
+     * A vertex is done means the vertex has nothing to do in a superstep.
+     * 
+     * @param vertexId vertex id.
+     */
+    void markAsDone(long vertexId) {
+        numActiveVertices--;
+    }
+
+    /**
+     * Do the computing.
+     */
     @Override
     public void run() {
-        if (graphPath != null && !graphLoaded) {
+        if (edgesPath != null && !edgesLoaded) {
             loadEdges();
         }
 
@@ -201,12 +255,9 @@ public class Worker<V, E, M> implements Runnable {
             loadVertices();
         }
 
-        long numActiveVertices = 0;
+        numActiveVertices = vertices.size();
         for (Vertex<V, E, M> vertex : vertices.values()) {
-            if (vertex.hasMessages() || context.getSuperstep() == 0) {
-                computeFunction.accept(vertex);
-                numActiveVertices++;
-            }
+            computeFunction.accept(vertex);
         }
         if (numActiveVertices == 0) {
             voteToHalt();
