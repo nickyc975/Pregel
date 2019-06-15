@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
-import framework.Aggregator;
 import framework.Combiner;
 import framework.Master;
 import framework.Vertex;
@@ -17,7 +16,7 @@ public class SSSP {
     public static void main(String[] args) {
         Master<Double, Double, Double> master = new Master<Double, Double, Double>();
         master.setNumPartitions(4)
-              .setWorkPath("data/page_rank")
+              .setWorkPath("data/sssp")
               .setEdgeParser(s -> {
                   String[] parts = s.split("\t");
                   return new Tuple3<>(Long.parseLong(parts[0]), Long.parseLong(parts[1]), 1.0);
@@ -29,17 +28,8 @@ public class SSSP {
                   public Double combine(Double a, Double b) {
                       return Double.min(a, b);
                   }
-              }).addAggregator("numEdges", new Aggregator<Vertex<Double, Double, Double>, Integer>() {
-                  @Override
-                  public Integer report(Vertex<Double, Double, Double> vertex) {
-                      return vertex.getOuterEdges().size();
-                  }
-
-                  @Override
-                  public Integer aggregate(Integer a, Integer b) {
-                      return a + b;
-                  }
               });
+
         Consumer<Vertex<Double, Double, Double>> computeFunction = vertex -> {
             double minValue = vertex.id() == 0 ? 0 : Double.POSITIVE_INFINITY;
 
@@ -65,15 +55,14 @@ public class SSSP {
                 vertex.sendMessageTo(edge._2, edge._3 + minValue);
             }
         };
+
         master.setComputeFunction(computeFunction);
         master.loadEdges("data/web-Google.txt");
         master.run();
 
-        System.out.println(master.getAggregatedValue("numEdges"));
-
         Iterator<Vertex<Double, Double, Double>> vertices = master.getVertices();
         try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter("data/page_rank/output.txt"));
+            BufferedWriter writer = new BufferedWriter(new FileWriter("data/sssp/output.txt"));
             while (vertices.hasNext()) {
                 Vertex<Double, Double, Double> vertex = vertices.next();
                 String output = String.format("%d\t%f\n", vertex.id(), vertex.getValue());

@@ -196,16 +196,13 @@ public class Worker<V, E, M> implements Runnable {
             sendQueues.put(vertexId, sendQueue);
         }
 
-        Message<M> initial = sendQueue.poll();
-        if (this.combiner != null) {
-            if (initial == null) {
-                initial = message;
-            } else {
-                M value = combiner.combine(initial.getValue(), message.getValue());
-                initial.setValue(value);
-            }
+        Message<M> initial = sendQueue.peek();
+        if (combiner != null && initial != null) {
+            initial = sendQueue.poll();
+            M value = combiner.combine(initial.getValue(), message.getValue());
+            message.setValue(value);
         }
-        sendQueue.offer(initial);
+        sendQueue.offer(message);
 
         if (sendQueue.size() > sendThreshold) {
             sendMessagesTo(vertexId, sendQueue);
@@ -327,20 +324,44 @@ public class Worker<V, E, M> implements Runnable {
         numActiveVertices--;
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * Report aggregating result and metrics to master.
+     */
     void report() {
-        Map<String, Object> values = (Map<String, Object>) aggregatedValues;
-        for (Entry<String, Object> value : values.entrySet()) {
+        for (Entry<String, ?> value : aggregatedValues.entrySet()) {
             context.aggregate(value.getKey(), value.getValue());
-            values.put(value.getKey(), null);
         }
+
+        aggregatedValues.clear();
+    }
+
+    /**
+     * Aggregate vertex with the aggregator with name valueName.
+     * 
+     * @param <A> return type of the aggregator's report() method.
+     * @param valueName aggregator name.
+     * @param vertex vertex to perform aggregator.
+     */
+    @SuppressWarnings("unchecked")
+    private <A> void aggregate(String valueName, Vertex<V, E, M> vertex) {
+        Map<String, A> values = (Map<String, A>) aggregatedValues;
+        Aggregator<Vertex<V, E, M>, A> aggregator = 
+                (Aggregator<Vertex<V, E, M>, A>) aggregators.get(valueName);
+        
+        A initial = values.get(valueName);
+        A newValue = aggregator.report(vertex);
+        if (initial == null) {
+            initial = newValue;
+        } else {
+            initial = aggregator.aggregate(initial, newValue);
+        }
+        values.put(valueName, initial);
     }
 
     /**
      * Do the computing.
      */
     @Override
-    @SuppressWarnings("unchecked")
     public void run() {
         if (edgesPath != null && !edgesLoaded) {
             loadEdges();
@@ -351,21 +372,10 @@ public class Worker<V, E, M> implements Runnable {
         }
 
         numActiveVertices = vertices.size();
-        Map<String, Object> values = (Map<String, Object>) aggregatedValues;
         for (Vertex<V, E, M> vertex : vertices.values()) {
             computeFunction.accept(vertex);
-            for (Entry<String, Aggregator<Vertex<V, E, M>, ?>> aggregatorEntry : aggregators.entrySet()) {
-                String key = aggregatorEntry.getKey();
-                Aggregator<Vertex<V, E, M>, Object> aggregator = (Aggregator<Vertex<V, E, M>, Object>) aggregatorEntry.getValue();
-
-                Object value = aggregator.report(vertex);
-                Object initial = aggregatedValues.get(key);
-                if (initial != null) {
-                    initial = aggregator.aggregate(initial, value);
-                } else {
-                    initial = value;
-                }
-                values.put(key, initial);
+            for (String valueName : aggregators.keySet()) {
+               aggregate(valueName, vertex);
             }
         }
         

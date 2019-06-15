@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
+import framework.Aggregator;
 import framework.Master;
 import framework.Vertex;
 import framework.utils.Tuple2;
@@ -22,6 +23,17 @@ public class PageRank {
               }).setVertexParser(s -> {
                   String[] parts = s.split("\t");
                   return new Tuple2<>(Long.parseLong(parts[0]), 0.0);
+              }).addAggregator("maxVertex", 
+                  new Aggregator<Vertex<Double, Void, Double>, Tuple2<Long, Double>>() {
+                      @Override
+                      public Tuple2<Long, Double> report(Vertex<Double, Void, Double> vertex) {
+                          return new Tuple2<>(vertex.id(), vertex.getValue());
+                      }
+
+                      @Override
+                      public Tuple2<Long, Double> aggregate(Tuple2<Long, Double> a, Tuple2<Long, Double> b) {
+                          return a._2 > b._2 ? a : b;
+                      }
               });
 
         Consumer<Vertex<Double, Void, Double>> computeFunction = vertex -> {
@@ -49,6 +61,9 @@ public class PageRank {
         master.setComputeFunction(computeFunction);
         master.loadEdges("data/web-Google.txt");
         master.run();
+
+        Tuple2<Long, Double> result = master.getAggregatedValue("maxVertex");
+        System.out.println("Max vertex id: " + result._1 + ", weight: " + result._2);
 
         Iterator<Vertex<Double, Void, Double>> vertices = master.getVertices();
         try {
