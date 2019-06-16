@@ -102,6 +102,8 @@ public class Master<V, E, M> {
         workers = new HashMap<>();
         aggregators = new HashMap<>();
         aggregatedValues = new HashMap<>();
+        this.addAggregator("numVertices", new NumVerticesAggregator());
+        this.addAggregator("numEdges", new NumEdgesAggregator());
     }
 
     long getSuperstep() {
@@ -114,11 +116,16 @@ public class Master<V, E, M> {
      * @return total number of vertices.
      */
     long getNumVertices() {
-        long sum = 0;
-        for (Worker<V, E, M> worker : workers.values()) {
-            sum += worker.getNumVertices();
-        }
-        return sum;
+        return this.getAggregatedValue("numVertices");
+    }
+
+    /**
+     * Get the total number of edges on all vertices.
+     * 
+     * @return total number of edges.
+     */
+    long getNumEdges() {
+        return this.getAggregatedValue("numEdges");
     }
 
     public Master<V, E, M> setEdgeParser(Function<String, Tuple3<Long, Long, E>> edgeParser) {
@@ -391,6 +398,36 @@ public class Master<V, E, M> {
                 }
             }
             return null;
+        }
+    }
+
+    /**
+     * Use this to monitor the number of vertices.
+     */
+    private class NumVerticesAggregator implements Aggregator<Vertex<V, E, M>, Long> {
+        @Override
+        public Long report(Vertex<V, E, M> vertex) {
+            return 1L;
+        }
+
+        @Override
+        public Long aggregate(Long a, Long b) {
+            return a + b;
+        }
+    }
+
+    /**
+     * Use this to monitor the number of edges.
+     */
+    private class NumEdgesAggregator implements Aggregator<Vertex<V, E, M>, Long> {
+        @Override
+        public Long report(Vertex<V, E, M> vertex) {
+            return (long) vertex.getOuterEdges().size();
+        }
+
+        @Override
+        public Long aggregate(Long a, Long b) {
+            return a + b;
         }
     }
 }
