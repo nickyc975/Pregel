@@ -13,7 +13,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -341,11 +340,17 @@ public class Master<V, E, M> {
         List<Thread> threads = new ArrayList<>();
         while (numActiveWorkers > 0) {
             numActiveWorkers = workers.size();
-            for (Entry<Long, Worker<V, E, M>> entry: workers.entrySet()) {
-                Thread thread = new Thread(entry.getValue());
+
+            for (Worker<V, E, M> worker: workers.values()) {
+                worker.preRun();
+            }
+
+            for (Worker<V, E, M> worker: workers.values()) {
+                Thread thread = new Thread(worker);
                 threads.add(thread);
                 thread.start();
             }
+
             for (Thread thread : threads) {
                 try {
                     thread.join();
@@ -354,12 +359,16 @@ public class Master<V, E, M> {
                 }
             }
             aggregatedValues.clear();
-
+            System.out.println("Superstep: " + superstep);
             for (Worker<V, E, M> worker : workers.values()) {
+                System.out.println(String.format(
+                    "worker id: %d, number of vertices: %d, number of edges: %d, " + 
+                    "message sent: %d, message received: %d, time cost: %d ms", 
+                    worker.id(), worker.getNumVertices(), worker.getNumEdges(), 
+                    worker.getNumMessageSent(), worker.getNumMessageReceived(), worker.getTimeCost()
+                ));
                 worker.report();
             }
-
-            System.out.println("Superstep: " + superstep);
             threads.clear();
             superstep++;
         }

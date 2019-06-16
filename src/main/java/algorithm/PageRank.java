@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.function.Consumer;
 
 import framework.Aggregator;
+import framework.Combiner;
 import framework.Master;
 import framework.Vertex;
 import framework.utils.Tuple2;
@@ -23,6 +24,11 @@ public class PageRank {
               }).setVertexParser(s -> {
                   String[] parts = s.split("\t");
                   return new Tuple2<>(Long.parseLong(parts[0]), 0.0);
+              }).setCombiner(new Combiner<Double>(){
+                  @Override
+                  public Double combine(Double a, Double b) {
+                      return a + b;
+                  }
               }).addAggregator("maxVertex", 
                   new Aggregator<Vertex<Double, Void, Double>, Tuple2<Long, Double>>() {
                       @Override

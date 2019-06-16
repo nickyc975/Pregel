@@ -37,6 +37,12 @@ public class Worker<V, E, M> implements Runnable {
      */
     private long numActiveVertices;
 
+    private long timeCost;
+
+    private long numMessageSent;
+
+    private long numMessageReceived;
+
     /**
      * Vertices on this worker.
      * 
@@ -129,6 +135,29 @@ public class Worker<V, E, M> implements Runnable {
         return context.getNumVertices();
     }
 
+    public long getNumEdges() {
+        return vertices.values()
+                       .stream()
+                       .mapToLong(vertex -> (long) vertex.getOuterEdges().size())
+                       .sum();
+    }
+
+    public long getTotalNumEdges() {
+        return context.getNumEdges();
+    }
+
+    public long getTimeCost() {
+        return this.timeCost;
+    }
+
+    public long getNumMessageSent() {
+        return this.numMessageSent;
+    }
+
+    public long getNumMessageReceived() {
+        return this.numMessageReceived;
+    }
+
     public Worker<V, E, M> setEdgeParser(Function<String, Tuple3<Long, Long, E>> edgeParser) {
         this.edgeParser = edgeParser;
         return this;
@@ -180,6 +209,7 @@ public class Worker<V, E, M> implements Runnable {
 
         while (!sendQueue.isEmpty()) {
             receiver.receiveMessage(sendQueue.poll());
+            numMessageSent++;
         }
     }
 
@@ -220,6 +250,7 @@ public class Worker<V, E, M> implements Runnable {
         if (receiver != null) {
             M value = message.getValue();
             synchronized (receiver) {
+                numMessageReceived++;
                 if (combiner != null && receiver.hasNextStepMessage()) {
                     value = combiner.combine(receiver.readNextStepMessage(), value);
                 }
@@ -331,8 +362,6 @@ public class Worker<V, E, M> implements Runnable {
         for (Entry<String, ?> value : aggregatedValues.entrySet()) {
             context.aggregate(value.getKey(), value.getValue());
         }
-
-        aggregatedValues.clear();
     }
 
     /**
@@ -359,10 +388,21 @@ public class Worker<V, E, M> implements Runnable {
     }
 
     /**
+     * Do some clean up before run.
+     */
+    public void preRun() {
+        aggregatedValues.clear();
+        this.numMessageSent = 0;
+        this.numMessageReceived = 0;
+    }
+
+    /**
      * Do the computing.
      */
     @Override
     public void run() {
+        long startTime = System.currentTimeMillis();
+
         if (edgesPath != null && !edgesLoaded) {
             loadEdges();
         }
@@ -383,6 +423,7 @@ public class Worker<V, E, M> implements Runnable {
             sendMessagesTo(entry.getKey(), entry.getValue());
         }
 
+        this.timeCost = System.currentTimeMillis() - startTime;
         if (numActiveVertices == 0) {
             voteToHalt();
         }
