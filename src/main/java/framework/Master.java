@@ -8,11 +8,11 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -399,26 +399,17 @@ public class Master<V, E, M> implements Context<V, E, M> {
         }
 
         numActiveWorkers = workers.size();
-        List<Thread> threads = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(workers.size());
         while (numActiveWorkers > 0) {
             numActiveWorkers = workers.size();
+            try {
+                pool.invokeAll(workers.values());
+            } catch (InterruptedException ignored) {
 
-            for (Worker<V, E, M> worker: workers.values()) {
-                Thread thread = new Thread(worker);
-                threads.add(thread);
-                thread.start();
             }
-
-            for (Thread thread : threads) {
-                try {
-                    thread.join();
-                } catch (InterruptedException ignored) {
-
-                }
-            }
-            threads.clear();
             updateState();
         }
+        pool.shutdown();
     }
 
     /**

@@ -7,13 +7,14 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import framework.utils.Tuple2;
 import framework.utils.Tuple3;
 
-class Worker<V, E, M> implements Runnable, Context<V, E, M> {
+class Worker<V, E, M> implements Callable<Void>, Context<V, E, M> {
     /**
      * Sending threshold. When the number of messages in queue is larger
      * than the threshold, the messages will be sent and the queue will 
@@ -424,9 +425,8 @@ class Worker<V, E, M> implements Runnable, Context<V, E, M> {
      * Run.
      */
     @Override
-    public void run() {
+    public Void call() {
         long startTime = System.currentTimeMillis();
-
         switch (context.state()) {
             case Initialized:
                 load();
@@ -443,7 +443,7 @@ class Worker<V, E, M> implements Runnable, Context<V, E, M> {
             default:
                 throw new IllegalStateException();
         }
-
         this.timeCost = System.currentTimeMillis() - startTime;
+        return null;
     }
 }
