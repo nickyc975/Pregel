@@ -7,14 +7,13 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import framework.utils.Tuple2;
 import framework.utils.Tuple3;
 
-public class Worker<V, E, M> implements Runnable {
+class Worker<V, E, M> implements Runnable, Context<V, E, M> {
     /**
      * Sending threshold. When the number of messages in queue is larger
      * than the threshold, the messages will be sent and the queue will 
@@ -30,7 +29,7 @@ public class Worker<V, E, M> implements Runnable {
     /**
      * The master that this worker belongs to.
      */
-    private final Master<V, E, M> context;
+    private final Context<V, E, M> context;
 
     /**
      * Number of active vertices.
@@ -56,19 +55,9 @@ public class Worker<V, E, M> implements Runnable {
     private String edgesPath = null;
 
     /**
-     * Indicate whether the edges are loaded.
-     */
-    private boolean edgesLoaded = false;
-
-    /**
      * The path of the vertices partition file that is assigned to this worker.
      */
     private String verticesPath = null;
-
-    /**
-     * Indicate whether the vertices are loaded.
-     */
-    private boolean verticesLoaded = false;
 
     /**
      * Same as Master.edgeParser.
@@ -105,7 +94,7 @@ public class Worker<V, E, M> implements Runnable {
      */
     private Map<String, ?> aggregatedValues = null;
 
-    Worker(long id, Master<V, E, M> context) {
+    Worker(long id, Context<V, E, M> context) {
         this.id = id;
         this.context = context;
         this.vertices = new HashMap<>();
@@ -118,67 +107,94 @@ public class Worker<V, E, M> implements Runnable {
         return this.id;
     }
 
+    @Override
+    public State state() {
+        return context.state();
+    }
+
     /**
      * Get superstep from master.
      * 
      * @return superstep.
      */
-    public long getSuperstep() {
-        return context.getSuperstep();
+    @Override
+    public long superstep() {
+        return context.superstep();
     }
 
-    public long getNumVertices() {
+    long getLocalNumVertices() {
         return vertices.size();
     }
 
-    public long getTotalNumVertices() {
+    @Override
+    public long getNumVertices() {
         return context.getNumVertices();
     }
 
-    public long getNumEdges() {
+    long getLocalNumEdges() {
         return vertices.values()
                        .stream()
                        .mapToLong(vertex -> (long) vertex.getOuterEdges().size())
                        .sum();
     }
 
-    public long getTotalNumEdges() {
+    @Override
+    public long getNumEdges() {
         return context.getNumEdges();
     }
 
-    public long getTimeCost() {
+    long getTimeCost() {
         return this.timeCost;
     }
 
-    public long getNumMessageSent() {
+    long getNumMessageSent() {
         return this.numMessageSent;
     }
 
-    public long getNumMessageReceived() {
+    long getNumMessageReceived() {
         return this.numMessageReceived;
     }
 
-    public Worker<V, E, M> setEdgeParser(Function<String, Tuple3<Long, Long, E>> edgeParser) {
+    @Override
+    public void addVertex(long id) {
+        context.addVertex(id);
+    }
+
+    @Override
+    public <A> A getAggregatedValue(String valueName) {
+        return context.getAggregatedValue(valueName);
+    }
+
+    /**
+     * Get iterator of vertices on this worker.
+     * 
+     * @return iterator of vertices on this worker.
+     */
+    Iterator<Vertex<V, E, M>> getVertices() {
+        return this.vertices.values().iterator();
+    }
+
+    Worker<V, E, M> setEdgeParser(Function<String, Tuple3<Long, Long, E>> edgeParser) {
         this.edgeParser = edgeParser;
         return this;
     }
 
-    public Worker<V, E, M> setVertexParser(Function<String, Tuple2<Long, V>> vertexParser) {
+    Worker<V, E, M> setVertexParser(Function<String, Tuple2<Long, V>> vertexParser) {
         this.vertexParser = vertexParser;
         return this;
     }
 
-    public Worker<V, E, M> setComputeFunction(Consumer<Vertex<V, E, M>> computeFunction) {
+    Worker<V, E, M> setComputeFunction(Consumer<Vertex<V, E, M>> computeFunction) {
         this.computeFunction = computeFunction;
         return this;
     }
 
-    public Worker<V, E, M> setCombiner(Combiner<M> combiner) {
+    Worker<V, E, M> setCombiner(Combiner<M> combiner) {
         this.combiner = combiner;
         return this;
     }
 
-    public Worker<V, E, M> setAggregators(Map<String, Aggregator<Vertex<V, E, M>, ?>> aggregators) {
+    Worker<V, E, M> setAggregators(Map<String, Aggregator<Vertex<V, E, M>, ?>> aggregators) {
         this.aggregators.putAll(aggregators);
         return this;
     }
@@ -196,19 +212,11 @@ public class Worker<V, E, M> implements Runnable {
     /**
      * Send messages to the given vertex.
      * 
-     * @param vertexId id of the target vertex.
      * @param sendQueue message queue.
      */
-    private void sendMessagesTo(long vertexId, Queue<Message<M>> sendQueue) {
-        Worker<V, E, M> receiver;
-        if (vertices.containsKey(vertexId)) {
-            receiver = this;
-        } else {
-            receiver = context.getWorkerFromVertexId(vertexId);
-        }
-
+    private void sendMessages(Queue<Message<M>> sendQueue) {
         while (!sendQueue.isEmpty()) {
-            receiver.receiveMessage(sendQueue.poll());
+            context.sendMessage(sendQueue.poll());
             numMessageSent++;
         }
     }
@@ -218,6 +226,7 @@ public class Worker<V, E, M> implements Runnable {
      * 
      * @param message message to send.
      */
+    @Override
     public void sendMessage(Message<M> message) {
         long vertexId = message.getReceiver();
         Queue<Message<M>> sendQueue = sendQueues.get(vertexId);
@@ -235,7 +244,7 @@ public class Worker<V, E, M> implements Runnable {
         sendQueue.offer(message);
 
         if (sendQueue.size() > sendThreshold) {
-            sendMessagesTo(vertexId, sendQueue);
+            sendMessages(sendQueue);
         }
     }
 
@@ -244,7 +253,7 @@ public class Worker<V, E, M> implements Runnable {
      * 
      * @param message message sent to vertices on this worker.
      */
-    public void receiveMessage(Message<M> message) {
+    void receiveMessage(Message<M> message) {
         long id = message.getReceiver();
         Vertex<V, E, M> receiver = vertices.get(id);
         if (receiver != null) {
@@ -260,18 +269,25 @@ public class Worker<V, E, M> implements Runnable {
     }
 
     /**
-     * Get iterator of vertices on this worker.
+     * Get or create a vertex with given id.
      * 
-     * @return iterator of vertices on this worker.
+     * @param id vertex id.
+     * @return the vertex with given id.
      */
-    public Iterator<Vertex<V, E, M>> getVertices() {
-        return this.vertices.values().iterator();
+    synchronized Vertex<V, E, M> getOrCreateVertex(long id) {
+        Vertex<V, E, M> vertex = vertices.get(id);
+        if (vertex == null) {
+            vertex = new Vertex<>(id, this);
+            this.vertices.put(id, vertex);
+        }
+
+        return vertex;
     }
 
     /**
      * Load edges partition.
      */
-    public void loadEdges() {
+    private void loadEdges() {
         try {
             Vertex<V, E, M> source;
             Tuple3<Long, Long, E> edge;
@@ -279,13 +295,7 @@ public class Worker<V, E, M> implements Runnable {
             String line = reader.readLine();
             while (line != null) {
                 edge = edgeParser.apply(line);
-                if (!vertices.containsKey(edge._1)) {
-                    source = new Vertex<>(edge._1, this);
-                    this.vertices.put(edge._1, source);
-                } else {
-                    source = vertices.get(edge._1);
-                }
-
+                source = getOrCreateVertex(edge._1);
                 if (!source.hasOuterEdgeTo(edge._2)) {
                     source.addOuterEdge(edge);
                 } else {
@@ -293,15 +303,9 @@ public class Worker<V, E, M> implements Runnable {
                         String.format("Warning: duplicate edge from %d to %d!", edge._1, edge._2)
                     );
                 }
-
-                if (context.getWorkerIdFromVertexId(edge._2) == this.id()) {
-                    if (!vertices.containsKey(edge._2)) {
-                        this.vertices.put(edge._2, new Vertex<>(edge._2, this));
-                    }
-                }
+                context.addVertex(edge._2);
                 line = reader.readLine();
             }
-            edgesLoaded = true;
             reader.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -311,7 +315,7 @@ public class Worker<V, E, M> implements Runnable {
     /**
      * Load vertices partition.
      */
-    public void loadVertices() {
+    private void loadVertices() {
         try {
             Vertex<V, E, M> vertex;
             Tuple2<Long, V> vertexValue;
@@ -319,29 +323,15 @@ public class Worker<V, E, M> implements Runnable {
             String line = reader.readLine();
             while (line != null) {
                 vertexValue = vertexParser.apply(line);
-                long vertexId = vertexValue._1;
-                if (vertices.containsKey(vertexId)) {
-                    vertex = vertices.get(vertexId);
-                } else {
-                    vertex = new Vertex<>(vertexId, this);
-                }
+                vertex = getOrCreateVertex(vertexValue._1);
                 vertex.setValue(vertexValue._2);
-                vertices.put(vertexId, vertex);
                 line = reader.readLine();
             }
-            verticesLoaded = true;
             reader.close();
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(-1);
         }
-    }
-
-    /**
-     * Tell master that this worker is done.
-     */
-    void voteToHalt() {
-        context.markAsDone(id());
     }
 
     /**
@@ -351,17 +341,9 @@ public class Worker<V, E, M> implements Runnable {
      * 
      * @param vertexId vertex id.
      */
-    void markAsDone(long vertexId) {
+    @Override
+    public void markAsDone(long vertexId) {
         numActiveVertices--;
-    }
-
-    /**
-     * Report aggregating result and metrics to master.
-     */
-    void report() {
-        for (Entry<String, ?> value : aggregatedValues.entrySet()) {
-            context.aggregate(value.getKey(), value.getValue());
-        }
     }
 
     /**
@@ -388,29 +370,31 @@ public class Worker<V, E, M> implements Runnable {
     }
 
     /**
+     * Load data.
+     */
+    private void load() {
+        if (edgesPath != null) {
+            loadEdges();
+        }
+
+        if (verticesPath != null) {
+            loadVertices();
+        }
+    }
+
+    /**
      * Do some clean up before run.
      */
-    public void preRun() {
+    private void clean() {
         aggregatedValues.clear();
         this.numMessageSent = 0;
         this.numMessageReceived = 0;
     }
 
     /**
-     * Do the computing.
+     * Do the compute.
      */
-    @Override
-    public void run() {
-        long startTime = System.currentTimeMillis();
-
-        if (edgesPath != null && !edgesLoaded) {
-            loadEdges();
-        }
-
-        if (verticesPath != null && !verticesLoaded) {
-            loadVertices();
-        }
-
+    private void compute() {
         numActiveVertices = vertices.size();
         for (Vertex<V, E, M> vertex : vertices.values()) {
             computeFunction.accept(vertex);
@@ -418,14 +402,48 @@ public class Worker<V, E, M> implements Runnable {
                aggregate(valueName, vertex);
             }
         }
-        
-        for (Entry<Long, Queue<Message<M>>> entry : sendQueues.entrySet()) {
-            sendMessagesTo(entry.getKey(), entry.getValue());
+
+        for (Queue<Message<M>> queue : sendQueues.values()) {
+            sendMessages(queue);
+        }
+
+        if (numActiveVertices == 0) {
+            context.markAsDone(id());
+        }
+    }
+
+    /**
+     * Report aggregating result and metrics to master.
+     */
+    @SuppressWarnings("unchecked")
+    <A> A report(String valueName) {
+        return (A) aggregatedValues.get(valueName);
+    }
+
+    /**
+     * Run.
+     */
+    @Override
+    public void run() {
+        long startTime = System.currentTimeMillis();
+
+        switch (context.state()) {
+            case Initialized:
+                load();
+                break;
+            case Loaded:
+                clean();
+                break;
+            case Cleaned:
+                compute();
+                break;
+            case Computed:
+                clean();
+                break;
+            default:
+                throw new IllegalStateException();
         }
 
         this.timeCost = System.currentTimeMillis() - startTime;
-        if (numActiveVertices == 0) {
-            voteToHalt();
-        }
     }
 }

@@ -19,7 +19,9 @@ import java.util.function.Function;
 import framework.utils.Tuple2;
 import framework.utils.Tuple3;
 
-public class Master<V, E, M> {
+public class Master<V, E, M> implements Context<V, E, M> {
+    private State state;
+
     /**
      * Current superstep.
      */
@@ -103,9 +105,16 @@ public class Master<V, E, M> {
         aggregatedValues = new HashMap<>();
         this.addAggregator("numVertices", new NumVerticesAggregator());
         this.addAggregator("numEdges", new NumEdgesAggregator());
+        this.state = State.Initialized;
     }
 
-    long getSuperstep() {
+    @Override
+    public State state() {
+        return this.state;
+    }
+
+    @Override
+    public long superstep() {
         return this.superstep;
     }
 
@@ -114,7 +123,8 @@ public class Master<V, E, M> {
      * 
      * @return total number of vertices.
      */
-    long getNumVertices() {
+    @Override
+    public long getNumVertices() {
         return this.getAggregatedValue("numVertices");
     }
 
@@ -123,8 +133,30 @@ public class Master<V, E, M> {
      * 
      * @return total number of edges.
      */
-    long getNumEdges() {
+    @Override
+    public long getNumEdges() {
         return this.getAggregatedValue("numEdges");
+    }
+
+    @Override
+    public void addVertex(long id) {
+        Worker<V, E, M> worker = workers.get(id % numPartitions);
+        worker.getOrCreateVertex(id);
+    }
+
+    @Override
+    public void sendMessage(Message<M> message) {
+        Worker<V, E, M> worker = workers.get(message.getReceiver() % numPartitions);
+        worker.receiveMessage(message);
+    }
+
+    /**
+     * Get an iterator of all vertices.
+     * 
+     * @return an iterator of all vertices.
+     */
+    public Iterator<Vertex<V, E, M>> getVertices() {
+        return new VertexIterator(this);
     }
 
     public Master<V, E, M> setEdgeParser(Function<String, Tuple3<Long, Long, E>> edgeParser) {
@@ -174,10 +206,6 @@ public class Master<V, E, M> {
         return this;
     }
 
-    public Master<V, E, M> addAggregator(Aggregator<Vertex<V, E, M>, ?> aggregator) {
-        return this.addAggregator(aggregator.getClass().getName(), aggregator);
-    }
-
     public Master<V, E, M> addAggregator(String valueName, Aggregator<Vertex<V, E, M>, ?> aggregator) {
         if (!this.aggregators.containsKey(valueName)) {
             this.aggregators.put(valueName, aggregator);
@@ -187,15 +215,15 @@ public class Master<V, E, M> {
         return this;
     }
 
-    public Worker<V, E, M> getWorkerFromWorkerId(long workerId) {
+    Worker<V, E, M> getWorkerFromWorkerId(long workerId) {
         return workers.get(workerId);
     }
 
-    public Worker<V, E, M> getWorkerFromVertexId(long vertexId) {
+    Worker<V, E, M> getWorkerFromVertexId(long vertexId) {
         return workers.get(getWorkerIdFromVertexId(vertexId));
     }
 
-    public long getWorkerIdFromVertexId(long vertexId) {
+    long getWorkerIdFromVertexId(long vertexId) {
         return vertexId % numPartitions;
     }
 
@@ -267,22 +295,14 @@ public class Master<V, E, M> {
     }
 
     /**
-     * Get an iterator of all vertices.
-     * 
-     * @return an iterator of all vertices.
-     */
-    public Iterator<Vertex<V, E, M>> getVertices() {
-        return new VertexIterator(this);
-    }
-
-    /**
      * Mark worker with workerId as done.
      * 
      * A worker is done means all vertices on that worker is inactive in a superstep.
      * 
      * @param workerId worker id.
      */
-    synchronized void markAsDone(long workerId) {
+    @Override
+    public synchronized void markAsDone(long workerId) {
         numActiveWorkers--;
     }
 
@@ -317,6 +337,48 @@ public class Master<V, E, M> {
     }
 
     /**
+     * Update global state.
+     * 
+     * Initialized ---> Loaded ---> Cleaned ---> Computed
+     *                                 ^            |
+     *                                 |            |
+     *                                  ------------
+     */
+    private void updateState() {
+        switch (this.state) {
+            case Initialized:
+                this.state = State.Loaded;
+                break;
+            case Loaded:
+                this.state = State.Cleaned;
+                break;
+            case Cleaned:
+                this.state = State.Computed;
+                aggregatedValues.clear();
+                System.out.println("Superstep: " + superstep);
+                for (Worker<V, E, M> worker : workers.values()) {
+                    System.out.println(String.format(
+                        "worker id: %d, number of vertices: %d, number of edges: %d, " + 
+                        "message sent: %d, message received: %d, time cost: %d ms", 
+                        worker.id(), worker.getLocalNumVertices(), worker.getLocalNumEdges(), 
+                        worker.getNumMessageSent(), worker.getNumMessageReceived(), worker.getTimeCost()
+                    ));
+
+                    for (String valueName : aggregators.keySet()) {
+                        aggregate(valueName, worker.report(valueName));
+                    }
+                }
+                superstep++;
+                break;
+            case Computed:
+                this.state = State.Cleaned;
+                break;
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
+    /**
      * Start calculating.
      */
     public void run() {
@@ -342,10 +404,6 @@ public class Master<V, E, M> {
             numActiveWorkers = workers.size();
 
             for (Worker<V, E, M> worker: workers.values()) {
-                worker.preRun();
-            }
-
-            for (Worker<V, E, M> worker: workers.values()) {
                 Thread thread = new Thread(worker);
                 threads.add(thread);
                 thread.start();
@@ -358,19 +416,8 @@ public class Master<V, E, M> {
 
                 }
             }
-            aggregatedValues.clear();
-            System.out.println("Superstep: " + superstep);
-            for (Worker<V, E, M> worker : workers.values()) {
-                System.out.println(String.format(
-                    "worker id: %d, number of vertices: %d, number of edges: %d, " + 
-                    "message sent: %d, message received: %d, time cost: %d ms", 
-                    worker.id(), worker.getNumVertices(), worker.getNumEdges(), 
-                    worker.getNumMessageSent(), worker.getNumMessageReceived(), worker.getTimeCost()
-                ));
-                worker.report();
-            }
             threads.clear();
-            superstep++;
+            updateState();
         }
     }
 

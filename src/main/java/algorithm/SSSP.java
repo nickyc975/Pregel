@@ -33,7 +33,7 @@ public class SSSP {
         Consumer<Vertex<Double, Double, Double>> computeFunction = vertex -> {
             double minValue = vertex.id() == 0 ? 0 : Double.POSITIVE_INFINITY;
 
-            if (vertex.context().getSuperstep() == 0) {
+            if (vertex.context().superstep() == 0) {
                 vertex.setValue(minValue);
             } else {
                 double originalValue = vertex.getValue();

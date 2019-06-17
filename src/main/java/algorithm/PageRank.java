@@ -52,14 +52,14 @@ public class PageRank {
                 while (vertex.hasMessages()) {
                     sum += vertex.readMessage();
                 }
-                double value = 0.15 / vertex.context().getTotalNumVertices() + 0.85 * sum;
+                double value = 0.15 / vertex.context().getNumVertices() + 0.85 * sum;
                 vertex.setValue(value);
             }
 
             int n = vertex.getOuterEdges().size();
             vertex.sendMessage(vertex.getValue() / n);
     
-            if (vertex.context().getSuperstep() > 30) {
+            if (vertex.context().superstep() > 30) {
                 vertex.voteToHalt();
             }
         };

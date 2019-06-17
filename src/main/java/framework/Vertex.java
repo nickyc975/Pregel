@@ -16,7 +16,7 @@ public final class Vertex<V, E, M> {
     /**
      * The worker that this vertex belongs to. 
      */
-    private final Worker<V, E, M> context;
+    private final Context<V, E, M> context;
 
     /**
      * Value of this vertex.
@@ -40,7 +40,7 @@ public final class Vertex<V, E, M> {
      */
     private final Queue<M> evenReceiveQueue;
 
-    Vertex(long id, Worker<V, E, M> context) {
+    Vertex(long id, Context<V, E, M> context) {
         this.id = id;
         this.context = context;
         this.outerEdges = new HashMap<>();
@@ -64,7 +64,7 @@ public final class Vertex<V, E, M> {
      * 
      * @return context of this vertex.
      */
-    public final Worker<V, E, M> context() {
+    public final Context<V, E, M> context() {
         return this.context;
     }
 
@@ -139,7 +139,7 @@ public final class Vertex<V, E, M> {
         Message<M> message = new Message<>(value);
         message.setSender(this.id())
                .setReceiver(receiver)
-               .setSuperstep(context.getSuperstep());
+               .setSuperstep(context.superstep());
         context.sendMessage(message);
     }
 
@@ -160,7 +160,7 @@ public final class Vertex<V, E, M> {
      * @return true if has messages, false otherwise.
      */
     public final boolean hasMessages() {
-        if (context.getSuperstep() % 2 == 0) {
+        if (context.superstep() % 2 == 0) {
             return !oddReceiveQueue.isEmpty();
         } else {
             return !evenReceiveQueue.isEmpty();
@@ -173,7 +173,7 @@ public final class Vertex<V, E, M> {
      * @return message received.
      */
     public final M readMessage() {
-        if (context.getSuperstep() % 2 == 0) {
+        if (context.superstep() % 2 == 0) {
             return oddReceiveQueue.remove();
         } else {
             return evenReceiveQueue.remove();
@@ -193,7 +193,7 @@ public final class Vertex<V, E, M> {
      * @param message message sent to this vertex.
      */
     synchronized final void receiveMessage(M message) {
-        if (context.getSuperstep() % 2 == 0) {
+        if (context.superstep() % 2 == 0) {
             evenReceiveQueue.add(message);
         } else {
             oddReceiveQueue.add(message);
@@ -206,7 +206,7 @@ public final class Vertex<V, E, M> {
      * @return true if has messages, false otherwise.
      */
     synchronized final boolean hasNextStepMessage() {
-        if (context.getSuperstep() % 2 == 0) {
+        if (context.superstep() % 2 == 0) {
             return !evenReceiveQueue.isEmpty();
         } else {
             return !oddReceiveQueue.isEmpty();
@@ -221,7 +221,7 @@ public final class Vertex<V, E, M> {
      * @return A message in the next superstep receive queue.
      */
     synchronized final M readNextStepMessage() {
-        if (context.getSuperstep() % 2 == 0) {
+        if (context.superstep() % 2 == 0) {
             return evenReceiveQueue.remove();
         } else {
             return oddReceiveQueue.remove();
