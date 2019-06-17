@@ -2,6 +2,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "CodeLens (Launch) - SSSP",
+            "request": "launch",
+            "mainClass": "algorithm.SSSP",
+            "projectName": "Lab_3"
+        },
+        {
+            "type": "java",
             "name": "CodeLens (Launch) - PageRank",
             "request": "launch",
             "mainClass": "algorithm.PageRank",
