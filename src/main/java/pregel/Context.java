@@ -1,4 +1,4 @@
-package framework;
+package pregel;
 
 /**
  * This is the interface that Vertex and Worker used to make global communication.

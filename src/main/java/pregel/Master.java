@@ -1,4 +1,4 @@
-package framework;
+package pregel;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -16,8 +16,8 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import framework.utils.Tuple2;
-import framework.utils.Tuple3;
+import pregel.utils.Tuple2;
+import pregel.utils.Tuple3;
 
 public class Master<V, E, M> implements Context<V, E, M> {
     private State state;

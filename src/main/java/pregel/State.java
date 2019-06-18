@@ -1,4 +1,4 @@
-package framework;
+package pregel;
 
 /**
  * Global state.

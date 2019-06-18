@@ -1,4 +1,4 @@
-package algorithm;
+package examples;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -6,12 +6,12 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
-import framework.Aggregator;
-import framework.Combiner;
-import framework.Master;
-import framework.Vertex;
-import framework.utils.Tuple2;
-import framework.utils.Tuple3;
+import pregel.Aggregator;
+import pregel.Combiner;
+import pregel.Master;
+import pregel.Vertex;
+import pregel.utils.Tuple2;
+import pregel.utils.Tuple3;
 
 public class PageRank {
     public static void main(String[] args) {

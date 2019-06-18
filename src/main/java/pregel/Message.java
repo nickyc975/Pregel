@@ -1,4 +1,4 @@
-package framework;
+package pregel;
 
 final class Message<M> {
     private M value;

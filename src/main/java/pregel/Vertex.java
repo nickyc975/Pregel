@@ -1,11 +1,11 @@
-package framework;
+package pregel;
 
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 
-import framework.utils.Tuple3;
+import pregel.utils.Tuple3;
 
 public final class Vertex<V, E, M> {
     /**

@@ -1,4 +1,4 @@
-package framework.utils;
+package pregel.utils;
 
 public class Tuple2<T1, T2> {
     public final T1 _1;
