@@ -1,16 +1,16 @@
 # Pregel
 
-A single-node pregel implementation.
+A single-node [pregel](https://dl.acm.org/citation.cfm?id=1584010) implementation.
 
 ## Implemented
 
-* __Combiner support__;
+* Combiner support
 
-* __Aggregators support__;
+* Aggregators support
 
-* __Multi-thread computing__;
+* Multi-thread computing
 
-* __Functional API__;
+* Functional API
 
 ## Usage
 
