@@ -14,10 +14,8 @@ import pregel.utils.Tuple3;
 
 public class SSSP {
     public static void main(String[] args) {
-        Master<Double, Double, Double> master = new Master<Double, Double, Double>();
-        master.setNumPartitions(4)
-              .setWorkPath("data/sssp")
-              .setEdgeParser(s -> {
+        Master<Double, Double, Double> master = new Master<Double, Double, Double>(4, "data/sssp");
+        master.setEdgeParser(s -> {
                   String[] parts = s.split("\t");
                   return new Tuple3<>(Long.parseLong(parts[0]), Long.parseLong(parts[1]), 1.0);
               }).setVertexParser(s -> {

@@ -28,9 +28,9 @@ public class Master<V, E, M> implements Context<V, E, M> {
     private long superstep = 0;
 
     /**
-     * Number of graph partitions.
+     * Number of workers.
      */
-    private int numPartitions;
+    private int numWorkers;
 
     /**
      * Number of active workers.
@@ -99,10 +99,29 @@ public class Master<V, E, M> implements Context<V, E, M> {
      */
     private Map<String, ?> aggregatedValues = null;
 
-    public Master() {
-        workers = new HashMap<>();
-        aggregators = new HashMap<>();
-        aggregatedValues = new HashMap<>();
+    /**
+     * Constructor of master.
+     * 
+     * @param numWorkers number of workers.
+     * @param workPath the root output path. All outputs will be under this path.
+     */
+    public Master(int numWorkers, String workPath) {
+        this.numWorkers = numWorkers;
+        this.workPath = FileSystems.getDefault().getPath(workPath);
+        if (Files.exists(this.workPath)) {
+            System.out.println("File \"" + this.workPath + "\" already exists!");
+            System.exit(-1);
+        }
+        
+        try {
+            Files.createDirectories(this.workPath);
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+        this.workers = new HashMap<>();
+        this.aggregators = new HashMap<>();
+        this.aggregatedValues = new HashMap<>();
         this.addAggregator("numVertices", new NumVerticesAggregator());
         this.addAggregator("numEdges", new NumEdgesAggregator());
         this.state = State.Initialized;
@@ -140,13 +159,16 @@ public class Master<V, E, M> implements Context<V, E, M> {
 
     @Override
     public void addVertex(long id) {
-        Worker<V, E, M> worker = workers.get(id % numPartitions);
+        if (state() != State.Initialized) {
+            throw new IllegalStateException("Unable to add vertices in current state: " + state());
+        }
+        Worker<V, E, M> worker = workers.get(id % numWorkers);
         worker.getOrCreateVertex(id);
     }
 
     @Override
     public void sendMessage(Message<M> message) {
-        Worker<V, E, M> worker = workers.get(message.getReceiver() % numPartitions);
+        Worker<V, E, M> worker = workers.get(message.getReceiver() % numWorkers);
         worker.receiveMessage(message);
     }
 
@@ -159,45 +181,50 @@ public class Master<V, E, M> implements Context<V, E, M> {
         return new VertexIterator(this);
     }
 
+    /**
+     * Set the function that will be used to parse edges from input files.
+     * 
+     * The param of the function is one line from the input file.
+     * 
+     * The returned value of the function is a 3 elements tuple with the first 
+     * element as the source of the edge, the second element as the target of 
+     * the edge and the third element as the user defined properties of the edge.
+     * 
+     * @param edgeParser the function.
+     * @return the master itself.
+     */
     public Master<V, E, M> setEdgeParser(Function<String, Tuple3<Long, Long, E>> edgeParser) {
         this.edgeParser = edgeParser;
         return this;
     }
 
+    /**
+     * Set the function that will be used tp parse vertices from input files.
+     * 
+     * The param of the function is one line from the input file.
+     * 
+     * The returned value of the function is a 2 elements tuple with the first 
+     * element as the the id of the vertex and the second value as user defined 
+     * properties of the vertex.
+     * 
+     * @param vertexParser the function.
+     * @return the master itself.
+     */
     public Master<V, E, M> setVertexParser(Function<String, Tuple2<Long, V>> vertexParser) {
         this.vertexParser = vertexParser;
         return this;
     }
 
-    public Master<V, E, M> setComputeFunction(Consumer<Vertex<V, E, M>> computeFunction) {
-        this.computeFunction = computeFunction;
-        return this;
-    }
-
     /**
-     * Set and create working directory.
+     * Set the function that will be applied on each vertex in super steps.
      * 
-     * @param path path of working directory.
+     * The param of the function is the vertex.
+     * 
+     * @param computeFunction the function.
      * @return the master itself.
      */
-    public Master<V, E, M> setWorkPath(String path) {
-        this.workPath = FileSystems.getDefault().getPath(path);
-        if (Files.exists(this.workPath)) {
-            System.out.println("File \"" + this.workPath + "\" already exists!");
-            System.exit(-1);
-        }
-        
-        try {
-            Files.createDirectories(workPath);
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(-1);
-        }
-        return this;
-    }
-
-    public Master<V, E, M> setNumPartitions(int numPartitions) {
-        this.numPartitions = numPartitions;
+    public Master<V, E, M> setComputeFunction(Consumer<Vertex<V, E, M>> computeFunction) {
+        this.computeFunction = computeFunction;
         return this;
     }
 
@@ -215,18 +242,6 @@ public class Master<V, E, M> implements Context<V, E, M> {
         return this;
     }
 
-    Worker<V, E, M> getWorkerFromWorkerId(long workerId) {
-        return workers.get(workerId);
-    }
-
-    Worker<V, E, M> getWorkerFromVertexId(long vertexId) {
-        return workers.get(getWorkerIdFromVertexId(vertexId));
-    }
-
-    long getWorkerIdFromVertexId(long vertexId) {
-        return vertexId % numPartitions;
-    }
-
     /**
      * Partition the given inputFile to the outputDir with partition index 
      * calculating function calIndexFunc.
@@ -239,8 +254,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
      */
     private void partition(String inputFile, String outputDir, Function<String, Integer> calIndexFunc) throws IOException {
         BufferedReader reader = new BufferedReader(new FileReader(inputFile));
-        BufferedWriter[] writers = new BufferedWriter[numPartitions];
-        for (int i = 0; i < numPartitions; i++) {
+        BufferedWriter[] writers = new BufferedWriter[numWorkers];
+        for (int i = 0; i < numWorkers; i++) {
             String partPath = outputDir + "/" + i + ".txt";
             writers[i] = new BufferedWriter(new FileWriter(partPath));
         }
@@ -268,7 +283,7 @@ public class Master<V, E, M> implements Context<V, E, M> {
             edgesPartsPath = workPath.resolve("graph").resolve("parts");
             Files.createDirectories(edgesPartsPath);
             partition(path, edgesPartsPath.toString(), 
-                s -> (int) (edgeParser.apply(s)._1 % numPartitions)
+                s -> (int) (edgeParser.apply(s)._1 % numWorkers)
             );
         } catch (IOException e) {
             e.printStackTrace();
@@ -286,7 +301,7 @@ public class Master<V, E, M> implements Context<V, E, M> {
             verticesPartsPath = workPath.resolve("vertices").resolve("parts");
             Files.createDirectories(verticesPartsPath);
             partition(path, verticesPartsPath.toString(), 
-                s -> (int) (vertexParser.apply(s)._1 % numPartitions)
+                s -> (int) (vertexParser.apply(s)._1 % numWorkers)
             );
         } catch (IOException e) {
             e.printStackTrace();
@@ -382,7 +397,7 @@ public class Master<V, E, M> implements Context<V, E, M> {
      * Start calculating.
      */
     public void run() {
-        for (int i = 0; i < numPartitions; i++) {
+        for (int i = 0; i < numWorkers; i++) {
             Worker<V, E, M> worker = new Worker<>(i, this);
             worker.setEdgeParser(edgeParser)
                   .setVertexParser(vertexParser)

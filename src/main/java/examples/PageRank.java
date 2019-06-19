@@ -15,10 +15,8 @@ import pregel.utils.Tuple3;
 
 public class PageRank {
     public static void main(String[] args) {
-        Master<Double, Void, Double> master = new Master<Double, Void, Double>();
-        master.setNumPartitions(4)
-              .setWorkPath("data/page_rank")
-              .setEdgeParser(s -> {
+        Master<Double, Void, Double> master = new Master<Double, Void, Double>(4, "data/page_rank");
+        master.setEdgeParser(s -> {
                   String[] parts = s.split("\t");
                   return new Tuple3<>(Long.parseLong(parts[0]), Long.parseLong(parts[1]), null);
               }).setVertexParser(s -> {
