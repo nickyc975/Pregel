@@ -124,7 +124,7 @@ public class Master<V, E, M> implements Context<V, E, M> {
         this.aggregatedValues = new HashMap<>();
         this.addAggregator("numVertices", new NumVerticesAggregator());
         this.addAggregator("numEdges", new NumEdgesAggregator());
-        this.state = State.Initialized;
+        this.state = State.INITIALIZED;
     }
 
     @Override
@@ -159,7 +159,7 @@ public class Master<V, E, M> implements Context<V, E, M> {
 
     @Override
     public void addVertex(long id) {
-        if (state() != State.Initialized) {
+        if (state() != State.INITIALIZED) {
             throw new IllegalStateException("Unable to add vertices in current state: " + state());
         }
         Worker<V, E, M> worker = workers.get(id % numWorkers);
@@ -354,21 +354,21 @@ public class Master<V, E, M> implements Context<V, E, M> {
     /**
      * Update global state.
      * 
-     * Initialized ---> Loaded ---> Cleaned ---> Computed
+     * INITIALIZED ---> LOADED ---> CLEANED ---> COMPUTED
      *                                 ^            |
      *                                 |            |
      *                                  ------------
      */
     private void updateState() {
         switch (this.state) {
-            case Initialized:
-                this.state = State.Loaded;
+            case INITIALIZED:
+                this.state = State.LOADED;
                 break;
-            case Loaded:
-                this.state = State.Cleaned;
+            case LOADED:
+                this.state = State.CLEANED;
                 break;
-            case Cleaned:
-                this.state = State.Computed;
+            case CLEANED:
+                this.state = State.COMPUTED;
                 aggregatedValues.clear();
                 System.out.println("Superstep: " + superstep);
                 for (Worker<V, E, M> worker : workers.values()) {
@@ -385,8 +385,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
                 }
                 superstep++;
                 break;
-            case Computed:
-                this.state = State.Cleaned;
+            case COMPUTED:
+                this.state = State.CLEANED;
                 break;
             default:
                 throw new IllegalStateException();

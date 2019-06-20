@@ -428,16 +428,16 @@ class Worker<V, E, M> implements Callable<Void>, Context<V, E, M> {
     public Void call() {
         long startTime = System.currentTimeMillis();
         switch (context.state()) {
-            case Initialized:
+            case INITIALIZED:
                 load();
                 break;
-            case Loaded:
+            case LOADED:
                 clean();
                 break;
-            case Cleaned:
+            case CLEANED:
                 compute();
                 break;
-            case Computed:
+            case COMPUTED:
                 clean();
                 break;
             default:

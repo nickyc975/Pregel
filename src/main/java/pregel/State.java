@@ -3,14 +3,14 @@ package pregel;
 /**
  * Global state.
  * 
- * Initialized ---> Loaded ---> Cleaned ---> Computed
+ * INITIALIZED ---> LOADED ---> CLEANED ---> COMPUTED
  *                                 ^            |
  *                                 |            |
  *                                  ------------
  */
 public enum State {
-    Initialized, // the master is just created.
-    Loaded, // workers loaded data.
-    Cleaned, // workers did clean up before compute.
-    Computed // workers finished one superstep.
+    INITIALIZED, // the master is just created.
+    LOADED, // workers loaded data.
+    CLEANED, // workers did clean up before compute.
+    COMPUTED // workers finished one superstep.
 }
