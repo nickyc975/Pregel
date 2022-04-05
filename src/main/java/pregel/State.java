@@ -4,9 +4,9 @@ package pregel;
  * Global state.
  * 
  * INITIALIZED ---> LOADED ---> CLEANED ---> COMPUTED
- *                                 ^            |
- *                                 |            |
- *                                  ------------
+ * ^ |
+ * | |
+ * ------------
  */
 public enum State {
     INITIALIZED, // the master is just created.

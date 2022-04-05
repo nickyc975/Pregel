@@ -17,7 +17,7 @@ import pregel.utils.Tuple3;
 class Worker<V, E, M> implements Callable<Void>, Context<V, E, M> {
     /**
      * Sending threshold. When the number of messages in queue is larger
-     * than the threshold, the messages will be sent and the queue will 
+     * than the threshold, the messages will be sent and the queue will
      * be cleared.
      */
     private static final int sendThreshold = 10;
@@ -134,9 +134,9 @@ class Worker<V, E, M> implements Callable<Void>, Context<V, E, M> {
 
     long getLocalNumEdges() {
         return vertices.values()
-                       .stream()
-                       .mapToLong(vertex -> (long) vertex.getOuterEdges().size())
-                       .sum();
+                .stream()
+                .mapToLong(vertex -> (long) vertex.getOuterEdges().size())
+                .sum();
     }
 
     @Override
@@ -301,8 +301,7 @@ class Worker<V, E, M> implements Callable<Void>, Context<V, E, M> {
                     source.addOuterEdge(edge);
                 } else {
                     System.out.println(
-                        String.format("Warning: duplicate edge from %d to %d!", edge._1, edge._2)
-                    );
+                            String.format("Warning: duplicate edge from %d to %d!", edge._1, edge._2));
                 }
                 context.addVertex(edge._2);
                 line = reader.readLine();
@@ -350,16 +349,15 @@ class Worker<V, E, M> implements Callable<Void>, Context<V, E, M> {
     /**
      * Aggregate vertex with the aggregator with name valueName.
      * 
-     * @param <A> return type of the aggregator's report() method.
+     * @param <A>       return type of the aggregator's report() method.
      * @param valueName aggregator name.
-     * @param vertex vertex to perform aggregator.
+     * @param vertex    vertex to perform aggregator.
      */
     @SuppressWarnings("unchecked")
     private <A> void aggregate(String valueName, Vertex<V, E, M> vertex) {
         Map<String, A> values = (Map<String, A>) aggregatedValues;
-        Aggregator<Vertex<V, E, M>, A> aggregator = 
-                (Aggregator<Vertex<V, E, M>, A>) aggregators.get(valueName);
-        
+        Aggregator<Vertex<V, E, M>, A> aggregator = (Aggregator<Vertex<V, E, M>, A>) aggregators.get(valueName);
+
         A initial = values.get(valueName);
         A newValue = aggregator.report(vertex);
         if (initial == null) {
@@ -400,7 +398,7 @@ class Worker<V, E, M> implements Callable<Void>, Context<V, E, M> {
         for (Vertex<V, E, M> vertex : vertices.values()) {
             computeFunction.accept(vertex);
             for (String valueName : aggregators.keySet()) {
-               aggregate(valueName, vertex);
+                aggregate(valueName, vertex);
             }
         }
 

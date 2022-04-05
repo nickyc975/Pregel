@@ -17,28 +17,28 @@ public class PageRank {
     public static void main(String[] args) {
         Master<Double, Void, Double> master = new Master<Double, Void, Double>(4, "data/page_rank");
         master.setEdgeParser(s -> {
-                  String[] parts = s.split("\t");
-                  return new Tuple3<>(Long.parseLong(parts[0]), Long.parseLong(parts[1]), null);
-              }).setVertexParser(s -> {
-                  String[] parts = s.split("\t");
-                  return new Tuple2<>(Long.parseLong(parts[0]), 0.0);
-              }).setCombiner(new Combiner<Double>(){
-                  @Override
-                  public Double combine(Double a, Double b) {
-                      return a + b;
-                  }
-              }).addAggregator("maxVertex", 
-                  new Aggregator<Vertex<Double, Void, Double>, Tuple2<Long, Double>>() {
-                      @Override
-                      public Tuple2<Long, Double> report(Vertex<Double, Void, Double> vertex) {
-                          return new Tuple2<>(vertex.id(), vertex.getValue());
-                      }
+            String[] parts = s.split("\t");
+            return new Tuple3<>(Long.parseLong(parts[0]), Long.parseLong(parts[1]), null);
+        }).setVertexParser(s -> {
+            String[] parts = s.split("\t");
+            return new Tuple2<>(Long.parseLong(parts[0]), 0.0);
+        }).setCombiner(new Combiner<Double>() {
+            @Override
+            public Double combine(Double a, Double b) {
+                return a + b;
+            }
+        }).addAggregator("maxVertex",
+                new Aggregator<Vertex<Double, Void, Double>, Tuple2<Long, Double>>() {
+                    @Override
+                    public Tuple2<Long, Double> report(Vertex<Double, Void, Double> vertex) {
+                        return new Tuple2<>(vertex.id(), vertex.getValue());
+                    }
 
-                      @Override
-                      public Tuple2<Long, Double> aggregate(Tuple2<Long, Double> a, Tuple2<Long, Double> b) {
-                          return a._2 > b._2 ? a : b;
-                      }
-              });
+                    @Override
+                    public Tuple2<Long, Double> aggregate(Tuple2<Long, Double> a, Tuple2<Long, Double> b) {
+                        return a._2 > b._2 ? a : b;
+                    }
+                });
 
         Consumer<Vertex<Double, Void, Double>> computeFunction = vertex -> {
             if (vertex.getValue() == null) {
@@ -56,7 +56,7 @@ public class PageRank {
 
             int n = vertex.getOuterEdges().size();
             vertex.sendMessage(vertex.getValue() / n);
-    
+
             if (vertex.context().superstep() > 30) {
                 vertex.voteToHalt();
             }

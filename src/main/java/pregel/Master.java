@@ -61,8 +61,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
      * User defined function to parse edges from strings.
      * 
      * The param of the function is one line from the input file.
-     * The returned value of the function is a 3 elements tuple with the first 
-     * element as the source of the edge, the second element as the target of 
+     * The returned value of the function is a 3 elements tuple with the first
+     * element as the source of the edge, the second element as the target of
      * the edge and the third element as the user defined properties of the edge.
      */
     private Function<String, Tuple3<Long, Long, E>> edgeParser = null;
@@ -71,8 +71,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
      * User defined function to parse vertices from strings.
      * 
      * The param of the function is one line from the input file.
-     * The returned value of the function is a 2 elements tuple with the first 
-     * element as the the id of the vertex and the second value as user defined 
+     * The returned value of the function is a 2 elements tuple with the first
+     * element as the the id of the vertex and the second value as user defined
      * properties of the vertex.
      */
     private Function<String, Tuple2<Long, V>> vertexParser = null;
@@ -103,7 +103,7 @@ public class Master<V, E, M> implements Context<V, E, M> {
      * Constructor of master.
      * 
      * @param numWorkers number of workers.
-     * @param workPath the root output path. All outputs will be under this path.
+     * @param workPath   the root output path. All outputs will be under this path.
      */
     public Master(int numWorkers, String workPath) {
         this.numWorkers = numWorkers;
@@ -112,7 +112,7 @@ public class Master<V, E, M> implements Context<V, E, M> {
             System.out.println("File \"" + this.workPath + "\" already exists!");
             System.exit(-1);
         }
-        
+
         try {
             Files.createDirectories(this.workPath);
         } catch (IOException e) {
@@ -186,8 +186,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
      * 
      * The param of the function is one line from the input file.
      * 
-     * The returned value of the function is a 3 elements tuple with the first 
-     * element as the source of the edge, the second element as the target of 
+     * The returned value of the function is a 3 elements tuple with the first
+     * element as the source of the edge, the second element as the target of
      * the edge and the third element as the user defined properties of the edge.
      * 
      * @param edgeParser the function.
@@ -203,8 +203,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
      * 
      * The param of the function is one line from the input file.
      * 
-     * The returned value of the function is a 2 elements tuple with the first 
-     * element as the the id of the vertex and the second value as user defined 
+     * The returned value of the function is a 2 elements tuple with the first
+     * element as the the id of the vertex and the second value as user defined
      * properties of the vertex.
      * 
      * @param vertexParser the function.
@@ -243,16 +243,18 @@ public class Master<V, E, M> implements Context<V, E, M> {
     }
 
     /**
-     * Partition the given inputFile to the outputDir with partition index 
+     * Partition the given inputFile to the outputDir with partition index
      * calculating function calIndexFunc.
      * 
-     * @param inputFile the file to be partitioned.
-     * @param outputDir the output directory.
-     * @param calIndexFunc the index calculating function, the param is one 
-     * line from the input file, the returned value is the partition index 
-     * of that line.
+     * @param inputFile    the file to be partitioned.
+     * @param outputDir    the output directory.
+     * @param calIndexFunc the index calculating function, the param is one
+     *                     line from the input file, the returned value is the
+     *                     partition index
+     *                     of that line.
      */
-    private void partition(String inputFile, String outputDir, Function<String, Integer> calIndexFunc) throws IOException {
+    private void partition(String inputFile, String outputDir, Function<String, Integer> calIndexFunc)
+            throws IOException {
         BufferedReader reader = new BufferedReader(new FileReader(inputFile));
         BufferedWriter[] writers = new BufferedWriter[numWorkers];
         for (int i = 0; i < numWorkers; i++) {
@@ -282,9 +284,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
         try {
             edgesPartsPath = workPath.resolve("graph").resolve("parts");
             Files.createDirectories(edgesPartsPath);
-            partition(path, edgesPartsPath.toString(), 
-                s -> (int) (edgeParser.apply(s)._1 % numWorkers)
-            );
+            partition(path, edgesPartsPath.toString(),
+                    s -> (int) (edgeParser.apply(s)._1 % numWorkers));
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(-1);
@@ -300,9 +301,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
         try {
             verticesPartsPath = workPath.resolve("vertices").resolve("parts");
             Files.createDirectories(verticesPartsPath);
-            partition(path, verticesPartsPath.toString(), 
-                s -> (int) (vertexParser.apply(s)._1 % numWorkers)
-            );
+            partition(path, verticesPartsPath.toString(),
+                    s -> (int) (vertexParser.apply(s)._1 % numWorkers));
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(-1);
@@ -312,7 +312,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
     /**
      * Mark worker with workerId as done.
      * 
-     * A worker is done means all vertices on that worker is inactive in a superstep.
+     * A worker is done means all vertices on that worker is inactive in a
+     * superstep.
      * 
      * @param workerId worker id.
      */
@@ -325,17 +326,16 @@ public class Master<V, E, M> implements Context<V, E, M> {
      * Aggregate values from workers.
      * 
      * @param valueName name of value.
-     * @param value value
+     * @param value     value
      */
     @SuppressWarnings("unchecked")
     synchronized <A> void aggregate(String valueName, A value) {
-        Map<String, A> values = (Map<String, A>)aggregatedValues;
+        Map<String, A> values = (Map<String, A>) aggregatedValues;
         A initial = values.get(valueName);
         if (initial == null) {
             initial = value;
         } else {
-            Aggregator<Vertex<V, E, M>, A> aggregator = 
-                    (Aggregator<Vertex<V, E, M>, A>)aggregators.get(valueName);
+            Aggregator<Vertex<V, E, M>, A> aggregator = (Aggregator<Vertex<V, E, M>, A>) aggregators.get(valueName);
             initial = aggregator.aggregate(initial, value);
         }
         values.put(valueName, initial);
@@ -355,9 +355,9 @@ public class Master<V, E, M> implements Context<V, E, M> {
      * Update global state.
      * 
      * INITIALIZED ---> LOADED ---> CLEANED ---> COMPUTED
-     *                                 ^            |
-     *                                 |            |
-     *                                  ------------
+     * ^ |
+     * | |
+     * ------------
      */
     private void updateState() {
         switch (this.state) {
@@ -373,11 +373,10 @@ public class Master<V, E, M> implements Context<V, E, M> {
                 System.out.println("Superstep: " + superstep);
                 for (Worker<V, E, M> worker : workers.values()) {
                     System.out.println(String.format(
-                        "worker id: %d, number of vertices: %d, number of edges: %d, " + 
-                        "message sent: %d, message received: %d, time cost: %d ms", 
-                        worker.id(), worker.getLocalNumVertices(), worker.getLocalNumEdges(), 
-                        worker.getNumMessageSent(), worker.getNumMessageReceived(), worker.getTimeCost()
-                    ));
+                            "worker id: %d, number of vertices: %d, number of edges: %d, " +
+                                    "message sent: %d, message received: %d, time cost: %d ms",
+                            worker.id(), worker.getLocalNumVertices(), worker.getLocalNumEdges(),
+                            worker.getNumMessageSent(), worker.getNumMessageReceived(), worker.getTimeCost()));
 
                     for (String valueName : aggregators.keySet()) {
                         aggregate(valueName, worker.report(valueName));
@@ -400,10 +399,10 @@ public class Master<V, E, M> implements Context<V, E, M> {
         for (int i = 0; i < numWorkers; i++) {
             Worker<V, E, M> worker = new Worker<>(i, this);
             worker.setEdgeParser(edgeParser)
-                  .setVertexParser(vertexParser)
-                  .setComputeFunction(computeFunction)
-                  .setCombiner(combiner)
-                  .setAggregators(aggregators);
+                    .setVertexParser(vertexParser)
+                    .setComputeFunction(computeFunction)
+                    .setCombiner(combiner)
+                    .setAggregators(aggregators);
             if (edgesPartsPath != null) {
                 worker.setEdgesPath(edgesPartsPath.resolve(i + ".txt").toString());
             }
@@ -412,6 +411,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
             }
             workers.put((long) i, worker);
         }
+
+        long startTime = System.currentTimeMillis();
 
         numActiveWorkers = workers.size();
         ExecutorService pool = Executors.newFixedThreadPool(workers.size());
@@ -425,6 +426,8 @@ public class Master<V, E, M> implements Context<V, E, M> {
             updateState();
         }
         pool.shutdown();
+
+        System.out.println(String.format("Total time cost: %d ms", System.currentTimeMillis() - startTime));
     }
 
     /**

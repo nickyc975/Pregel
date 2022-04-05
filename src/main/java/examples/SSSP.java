@@ -16,17 +16,17 @@ public class SSSP {
     public static void main(String[] args) {
         Master<Double, Double, Double> master = new Master<Double, Double, Double>(4, "data/sssp");
         master.setEdgeParser(s -> {
-                  String[] parts = s.split("\t");
-                  return new Tuple3<>(Long.parseLong(parts[0]), Long.parseLong(parts[1]), 1.0);
-              }).setVertexParser(s -> {
-                  String[] parts = s.split("\t");
-                  return new Tuple2<>(Long.parseLong(parts[0]), 0.0);
-              }).setCombiner(new Combiner<Double>(){
-                  @Override
-                  public Double combine(Double a, Double b) {
-                      return Double.min(a, b);
-                  }
-              });
+            String[] parts = s.split("\t");
+            return new Tuple3<>(Long.parseLong(parts[0]), Long.parseLong(parts[1]), 1.0);
+        }).setVertexParser(s -> {
+            String[] parts = s.split("\t");
+            return new Tuple2<>(Long.parseLong(parts[0]), 0.0);
+        }).setCombiner(new Combiner<Double>() {
+            @Override
+            public Double combine(Double a, Double b) {
+                return Double.min(a, b);
+            }
+        });
 
         Consumer<Vertex<Double, Double, Double>> computeFunction = vertex -> {
             double minValue = vertex.id() == 0 ? 0 : Double.POSITIVE_INFINITY;
@@ -36,7 +36,7 @@ public class SSSP {
             } else {
                 double originalValue = vertex.getValue();
 
-                while(vertex.hasMessages()) {
+                while (vertex.hasMessages()) {
                     minValue = Double.min(minValue, vertex.readMessage());
                     if (minValue < vertex.getValue()) {
                         vertex.setValue(minValue);

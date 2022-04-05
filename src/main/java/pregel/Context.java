@@ -1,7 +1,8 @@
 package pregel;
 
 /**
- * This is the interface that Vertex and Worker used to make global communication.
+ * This is the interface that Vertex and Worker used to make global
+ * communication.
  * 
  * @param <V> user defined vertex value.
  * @param <E> user defined edge value.
@@ -60,7 +61,7 @@ public interface Context<V, E, M> {
     /**
      * Get globally aggregated value with given value name.
      * 
-     * @param <A> value type.
+     * @param <A>       value type.
      * @param valueName value name.
      * @return globally aggregated value with given value name.
      */

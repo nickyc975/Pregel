@@ -14,7 +14,7 @@ public final class Vertex<V, E, M> {
     private final long id;
 
     /**
-     * The worker that this vertex belongs to. 
+     * The worker that this vertex belongs to.
      */
     private final Context<V, E, M> context;
 
@@ -29,13 +29,13 @@ public final class Vertex<V, E, M> {
     private final Map<Long, Tuple3<Long, Long, E>> outerEdges;
 
     /**
-     * When current superstep is odd, use oddReceiveQueue to store 
+     * When current superstep is odd, use oddReceiveQueue to store
      * the messages received in current superstep.
      */
     private final Queue<M> oddReceiveQueue;
 
     /**
-     * When current superstep is even, use evenReceiveQueue to store 
+     * When current superstep is even, use evenReceiveQueue to store
      * the messages received in current superstep.
      */
     private final Queue<M> evenReceiveQueue;
@@ -133,13 +133,13 @@ public final class Vertex<V, E, M> {
      * Send a message to the receiver.
      * 
      * @param receiver receiver id.
-     * @param message message to send.
+     * @param message  message to send.
      */
     public final void sendMessageTo(long receiver, M value) {
         Message<M> message = new Message<>(value);
         message.setSender(this.id())
-               .setReceiver(receiver)
-               .setSuperstep(context.superstep());
+                .setReceiver(receiver)
+                .setSuperstep(context.superstep());
         context.sendMessage(message);
     }
 
